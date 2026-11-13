@@ -7,11 +7,20 @@ on the page and comes back every time you return. All your notes live in one vis
 your browser: no account, no server, no tracking.
 
 [**Add to Chrome — free**](https://chromewebstore.google.com/detail/odjgbkgepfbfmjebffcohkkheonhhdcm) ·
-[Watch the tutorials](https://guetix.com/components/page-notes-extension#how-it-works) ·
+[▶ Watch on YouTube](https://www.youtube.com/watch?v=jKS0PORwXZo) ·
+[All tutorials](https://guetix.com/components/page-notes-extension#how-it-works) ·
 [Website](https://guetix.com/components/page-notes-extension) ·
 [Privacy](PRIVACY.md)
 
 <p align="center"><img src="docs/images/demo.gif" alt="Highlighting text and sticking a note to an element" width="720"></p>
+
+## Watch how it works
+
+[![Page Notes — How it works (YouTube)](https://img.youtube.com/vi/jKS0PORwXZo/maxresdefault.jpg)](https://www.youtube.com/watch?v=jKS0PORwXZo)
+
+2-minute tour: install, pin notes, drag one off the toolbar, highlight text, stick a note to an element, the extension
+bar, All notes and Settings. More short tutorials (toolbar, note options, All notes, Settings) on
+[guetix.com](https://guetix.com/components/page-notes-extension#how-it-works).
 
 ## Features
 
