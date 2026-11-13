@@ -1,0 +1,1986 @@
+/* Guetix Page Notes — content script (v1.1).
+ *
+ * Notes look and behave exactly like the @guetix/page-notes package (taped sticky notes you
+ * pin anywhere and drag anywhere) plus what only an extension can do: they come back on every
+ * visit, can stick to an element (hold Shift) or to highlighted text, get a snapshot for the
+ * list, and have deep links. Everything renders in a closed Shadow DOM and lives in
+ * chrome.storage.local — nothing leaves the browser. */
+(function () {
+  if (window.__gxPageNotes) return;
+  window.__gxPageNotes = true;
+
+  var ORANGE = "#ff5b14";
+  var GRAD = "linear-gradient(135deg,#ff9a3c 0%,#ff5b14 60%,#ff4d4d 120%)";
+
+  // ---- styles: notes = the package's CSS (same sizes, tape, tilt, colors); chrome = Guetix lab style
+  var STYLES = [
+    ":host{all:initial}",
+    "@media print{:host{display:none!important}}",
+    "*{box-sizing:border-box}",
+    // package notes ------------------------------------------------------------
+    ".gxn-layer{position:absolute;left:0;top:0;width:0;height:0;font:14px/1.4 ui-rounded,system-ui,sans-serif}",
+    ".gxn-note{position:absolute;width:190px;min-height:120px;padding:26px 10px 10px;border-radius:2px 2px 14px 2px;box-shadow:0 10px 24px -8px rgba(0,0,0,.55);transform:rotate(var(--r));color:#1c1917;pointer-events:auto;animation:gxn-in .35s cubic-bezier(.3,1.6,.5,1)}",
+    '.gxn-note::before{content:"";position:absolute;top:-8px;left:50%;width:56px;height:18px;transform:translateX(-50%) rotate(-3deg);background:rgba(255,255,255,.55);box-shadow:0 1px 2px rgba(0,0,0,.15)}',
+    ".gxn-bar{position:absolute;top:4px;left:8px;right:6px;display:flex;align-items:center;gap:5px;cursor:grab;touch-action:none;user-select:none}",
+    ".gxn-bar:active,.gxn-num:active{cursor:grabbing}",
+    ".gxn-dot{all:unset;width:12px;height:12px;border-radius:50%;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}",
+    ".gxn-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px rgba(0,0,0,.2),0 0 0 1.5px #1c1917}",
+    ".gxn-dot:focus-visible,.gxn-x:focus-visible,.gxn-num:focus-visible{outline:2px solid #111}",
+    ".gxn-sp{flex:1}",
+    ".gxn-x{all:unset;cursor:pointer;opacity:.5;font-size:13px;line-height:1;padding:0 2px}",
+    ".gxn-x:hover{opacity:1}",
+    ".gxn-x[aria-pressed=true]{opacity:1}",
+    ".gxn-text,.gxn-view{all:unset;display:block;width:100%;min-height:80px;white-space:pre-wrap;word-break:break-word;font:500 12.5px/1.6 'GXPN Mono',ui-monospace,monospace;letter-spacing:-.01em;color:#1c1917;cursor:text}",
+    ".gxn-text{caret-color:#c2410c}",
+    ".gxn-text::selection,.gxn-view::selection{background:rgba(28,25,23,.18)}",
+    ".gxn-view{display:none}",
+    ".gxn-note.viewing .gxn-text{display:none}.gxn-note.viewing .gxn-view{display:block}",
+    ".gxn-view a{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:0 7px 0 5px;margin:1px;border-radius:999px;background:rgba(28,25,23,.88);color:#fff;font:600 10.5px/19px 'GXPN Mono',ui-monospace,monospace;text-decoration:none;vertical-align:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:background .15s}",
+    ".gxn-view a::before{content:'\u2197';color:" + ORANGE + ";font-weight:700}",
+    ".gxn-view a:hover{background:" + ORANGE + "}.gxn-view a:hover::before{color:#141414}",
+    ".gxn-rs{position:absolute;right:1px;bottom:1px;width:16px;height:16px;cursor:nwse-resize;opacity:0;touch-action:none;transition:opacity .15s;background:linear-gradient(135deg,transparent 0 55%,rgba(28,25,23,.5) 55% 62%,transparent 62% 72%,rgba(28,25,23,.5) 72% 79%,transparent 79%)}",
+    ".gxn-note:hover .gxn-rs,.gxn-note.resizing .gxn-rs{opacity:1}",
+    ".gxn-note.sized{display:flex;flex-direction:column}",
+    ".gxn-note.sized .gxn-text,.gxn-note.sized .gxn-view{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}",
+    ".gxn-note.resizing,.gxn-note.dragging{animation:none;transition:none}",
+    ".gxn-text:empty::before{content:attr(data-ph);opacity:.45}",
+    "@keyframes gxn-in{from{opacity:0;transform:rotate(var(--r)) scale(.6) translateY(-10px)}}",
+    // extension extras on the note --------------------------------------------
+    ".gxn-meta{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:6px;font:500 9.5px/1.3 'GXPN Mono',ui-monospace,monospace;letter-spacing:.02em;color:rgba(28,25,23,.6)}",
+    ".gxn-q{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}",
+    ".gxn-lost{color:#b91c1c;font-weight:700}",
+    ".gxn-link{all:unset;cursor:pointer;padding:1px 5px;border:1px solid rgba(28,25,23,.35);border-radius:3px;color:#1c1917;max-width:150px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}",
+    ".gxn-link:hover{background:#1c1917;color:#fff}",
+    ".gxn-note[data-done] .gxn-text{text-decoration:line-through;opacity:.55}",
+    ".gxn-stamp{display:none;position:absolute;right:8px;bottom:8px;padding:2px 6px;border-radius:2px;background:#1c1917;color:#fff;font:700 9px 'GXPN Mono',ui-monospace,monospace;letter-spacing:.14em;transform:rotate(-8deg)}",
+    ".gxn-note[data-done] .gxn-stamp{display:block;background:#15803d}",
+    ".gxn-num{all:unset;display:none;cursor:grab;font:700 14px 'GXPN Pixel',ui-monospace,monospace;color:#1c1917;padding:2px 2px 0;touch-action:none}",
+    ".gxn-flag{font-weight:900;font-family:system-ui,sans-serif}",
+    ".gxn-flag[aria-pressed=true]{color:#dc2626;opacity:1}",
+    ".gxn-note.urgent{box-shadow:0 0 0 2px #dc2626,0 10px 24px -8px rgba(0,0,0,.55)}",
+    ".gxn-note.urgent::before{background:rgba(220,38,38,.85)}",
+    ".gxn-urg{padding:1px 5px;border-radius:3px;background:#dc2626;color:#fff;font-weight:700;letter-spacing:.08em}",
+    ".gxn-note.min{width:auto!important;height:auto!important;min-height:0;padding:9px 9px 7px;border-radius:2px 2px 9px 2px}",
+    ".gxn-note.min::before{width:30px;height:12px;top:-6px}",
+    ".gxn-note.min .gxn-bar,.gxn-note.min .gxn-text,.gxn-note.min .gxn-view,.gxn-note.min .gxn-meta,.gxn-note.min .gxn-stamp,.gxn-note.min .gxn-rs{display:none!important}",
+    ".gxn-note.min .gxn-num{display:block}",
+    ".gxn-note.pulse{animation:gxn-pulse 1.1s ease-out 2}",
+    "@keyframes gxn-pulse{0%{box-shadow:0 0 0 0 rgba(255,91,20,.85),0 10px 24px -8px rgba(0,0,0,.55)}100%{box-shadow:0 0 0 22px rgba(255,91,20,0),0 10px 24px -8px rgba(0,0,0,.55)}}",
+    ".gxn-note.ghost{font:14px/1.4 ui-rounded,system-ui,sans-serif;text-transform:none;letter-spacing:0;position:fixed;pointer-events:none;opacity:.92;animation:none;box-shadow:0 22px 40px -10px rgba(0,0,0,.5)}",
+    // lab chrome (dock, hint, guides, toast) ---------------------------------
+    ".lab{font:500 11px/1.2 'GXPN Mono',ui-monospace,monospace;letter-spacing:.04em;color:#141414;text-transform:uppercase}",
+    ".fixed{position:fixed;inset:0;pointer-events:none}",
+    ".catch{position:fixed;inset:0;display:none;pointer-events:auto;cursor:crosshair}",
+    ".gh,.gv{position:fixed;display:none;pointer-events:none;background:" + ORANGE + "}",
+    ".gh{left:0;right:0;height:1px}.gv{top:0;bottom:0;width:1px}",
+    ".snap .gh,.snap .gv{background:repeating-linear-gradient(90deg," + ORANGE + " 0 6px,transparent 6px 10px)}",
+    ".snap .gv{background:repeating-linear-gradient(180deg," + ORANGE + " 0 6px,transparent 6px 10px)}",
+    ".coord{position:fixed;display:none;align-items:center;gap:7px;pointer-events:none;padding:3px 8px 3px 3px;border-radius:7px;background:#141414;color:#f4f4f4;white-space:nowrap;box-shadow:0 6px 16px -6px rgba(0,0,0,.5)}",
+    ".ai{display:grid;place-items:center;width:22px;height:22px;border-radius:5px;background:" + GRAD + ";color:#141414}",
+    ".ai.t-el{background:#2563eb;color:#fff}.ai.t-hl{background:#fde047;color:#713f12}",
+    ".ai svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
+    ".tx{position:fixed;display:none;pointer-events:none;border:1.5px dashed #eab308;border-radius:5px;background:rgba(253,224,71,.16);transition:left .08s,top .08s,width .08s,height .08s}",
+    ".tx i{position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:2px 7px;border-radius:4px;background:#713f12;color:#fef9c3;font-style:normal;white-space:nowrap;text-transform:none;letter-spacing:0;font:600 11px system-ui,-apple-system,'Segoe UI',sans-serif}",
+    ".coord b{color:" + ORANGE + ";font-weight:600}",
+    ".hl{position:fixed;display:none;pointer-events:none;border:1.5px solid #2563eb;border-radius:4px;background:rgba(37,99,235,.08)}",
+    ".hl::before,.hl::after{content:'';position:absolute;width:9px;height:9px;border:2px solid #2563eb}",
+    ".hl::before{left:-5px;top:-5px;border-right:0;border-bottom:0}.hl::after{right:-5px;bottom:-5px;border-left:0;border-top:0}",
+    ".hl i{position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:2px 6px;border-radius:2px;background:#1e3a8a;color:#fff;font-style:normal;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}",
+    // guide bar (top): icon tile + title + key steps + cancel
+    ".hint{position:fixed;right:16px;bottom:66px;display:none;align-items:center;gap:11px;width:max-content;max-width:min(380px,calc(100vw - 32px));padding:8px 8px 8px 8px;background:#141414;color:#f5f5f4;border-radius:12px;box-shadow:0 12px 32px -10px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06) inset;pointer-events:auto;text-transform:none;letter-spacing:0;font:500 12.5px/1.3 system-ui,-apple-system,'Segoe UI',sans-serif;animation:gx-up .18s ease-out}",
+    ".hint::after{content:'';position:absolute;right:46px;bottom:-5px;width:10px;height:10px;background:#141414;transform:rotate(45deg)}",
+    ".hi-ic{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:9px;background:" + GRAD + ";color:#141414}",
+    ".hi-ic svg,.t-ic svg,.dk svg,.mi svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
+    ".hi-ic svg{width:17px;height:17px}",
+    ".hi-tx{display:grid;gap:3px;min-width:0}",
+    ".hi-tx b{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".hi-tx small{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:11px;color:#a8a29e}",
+    ".hint kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-right:4px;border-radius:5px;background:#2b2b2b;box-shadow:inset 0 -1px 0 rgba(255,255,255,.12),0 0 0 1px #3a3a3a;color:#fff;font:600 10px/1 'GXPN Mono',ui-monospace,monospace}",
+    ".hi-x{all:unset;flex:none;align-self:flex-start;cursor:pointer;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;color:#a8a29e}",
+    ".hi-x svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}",
+    ".hi-x:hover{background:#3a3a3a;color:#fff}",
+    // toast: icon + message + optional action, with a countdown bar
+    ".toast{position:fixed;right:16px;bottom:66px;display:none;align-items:center;gap:10px;max-width:min(380px,calc(100vw - 32px));padding:6px 6px 6px 8px;border-radius:12px;overflow:hidden;background:#141414;color:#f5f5f4;pointer-events:auto;text-transform:none;letter-spacing:0;font:500 12.5px/1.3 system-ui,-apple-system,'Segoe UI',sans-serif;box-shadow:0 12px 32px -10px rgba(0,0,0,.55);animation:gx-up .18s ease-out}",
+    ".t-ic{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:8px;background:#262626;color:" + ORANGE + "}",
+    ".t-ic svg{width:14px;height:14px}",
+    ".t-tx{padding-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".toast button{all:unset;flex:none;cursor:pointer;height:28px;padding:0 12px;border-radius:8px;background:" + GRAD + ";color:#141414;font-weight:700;font-size:12px}",
+    ".toast button:hover{filter:brightness(1.08)}",
+    ".t-bar{position:absolute;left:0;bottom:0;width:100%;height:2px;background:" + ORANGE + ";transform-origin:left;animation:gx-count linear forwards}",
+    "@keyframes gx-count{from{transform:scaleX(1)}to{transform:scaleX(0)}}",
+    "@keyframes gx-drop{from{opacity:0;transform:translate(-50%,-8px)}}",
+    "@keyframes gx-rise{from{opacity:0;transform:translate(-50%,8px)}}",
+    // dock (bottom right): [logo + count] [+ Note | caret] [more] [x]  -  folded = logo + count only
+    ".dock{position:fixed;right:16px;bottom:16px;display:none;align-items:center;gap:2px;padding:2px;background:#fafaf9;border:1px solid #141414;border-radius:6px;box-shadow:2px 2px 0 #141414;pointer-events:auto;animation:dock-in .3s cubic-bezier(.3,1.4,.5,1)}",
+    ".dock button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;height:26px;border-radius:4px;transition:background .15s,color .15s}",
+    ".vr{flex:none;width:1px;height:14px;margin:0 1px;background:#d6d3d1}",
+    ".dock.placing>.vr{display:none}",
+    ".dock button:focus-visible{outline:2px solid " + ORANGE + ";outline-offset:1px}",
+    ".dk{width:26px;color:#57534e}.dk:hover{background:#efedeb;color:#141414}",
+    ".dk svg{width:14px;height:14px;stroke-width:1.7}",
+    ".dock .brand{position:relative;padding:0 4px}",
+    ".dock .brand:hover{background:#efedeb}",
+    ".cnt{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:999px;background:" + ORANGE + ";color:#fff;border:1.5px solid #fafaf9;font:700 9px/13px 'GXPN Mono',ui-monospace,monospace;text-align:center;box-sizing:border-box}",
+    ".cnt.zero{display:none}",
+    ".split{display:flex;align-items:stretch;border-radius:4px;background:" + GRAD + ";box-shadow:inset 0 -1.5px 0 rgba(0,0,0,.14)}",
+    ".split button{color:#141414;font:700 10.5px 'GXPN Mono',ui-monospace,monospace;letter-spacing:.05em;text-transform:uppercase}",
+    ".split .new{padding:0 7px 0 7px;touch-action:none;border-radius:4px 0 0 4px}",
+    ".split .new kbd{margin-left:2px;padding:0 4px;height:15px;display:inline-grid;place-items:center;border-radius:3px;background:rgba(255,255,255,.5);font:600 9px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.02em;text-transform:none;color:rgba(20,20,20,.75)}",
+    ".split .new svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
+    ".menu button[aria-checked=true]{background:#fff1e8;font-weight:700}",
+    ".menu button[aria-checked=true]::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:3px;background:" + ORANGE + "}",
+    ".menu button[aria-checked=true]::after{content:none}",
+    ".split .caret{width:20px;border-left:1px solid rgba(20,20,20,.2);border-radius:0 4px 4px 0}",
+    ".split button:hover{background:rgba(255,255,255,.22)}",
+    ".split .caret svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}",
+    ".split .caret[aria-expanded=true] svg{transform:rotate(180deg)}",
+    ".menu{position:absolute;right:0;bottom:calc(100% + 8px);min-width:240px;display:none;flex-direction:column;padding:4px;border-radius:6px;background:#fafaf9;border:1px solid rgba(20,20,20,.55);box-shadow:1.5px 1.5px 0 rgba(20,20,20,.55),0 10px 24px -12px rgba(0,0,0,.3);font:500 12px/1.25 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:0;text-transform:none;animation:gx-up .14s ease-out}",
+    ".notips .st-l,.notips .status .help,.notips .cxy,.notips .tx i,.notips .hl i{display:none!important}",
+    ".notips .coord{padding:3px}",
+    ".cfm-bg{position:fixed;inset:0;display:none;place-items:center;background:rgba(20,20,20,.12);pointer-events:auto;text-transform:none;letter-spacing:0}",
+    ".cfm-bg.on{display:grid}",
+    ".cfm{display:grid;grid-template-columns:auto 1fr;column-gap:9px;row-gap:2px;align-items:center;width:min(270px,calc(100vw - 32px));padding:12px;border:1px solid #141414;border-radius:6px;background:#fafaf9;box-shadow:2px 2px 0 #141414;font:500 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif;color:#141414;animation:gx-up .14s ease-out}",
+    ".cfm .ci2{grid-row:1/3;display:grid;place-items:center;width:26px;height:26px;border-radius:5px;background:#fee2e2;color:#b91c1c}",
+    ".cfm .ci2 svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
+    ".cfm b{font:700 11px/1.2 'GXPN Mono',ui-monospace,monospace;letter-spacing:.02em}",
+    ".cfm p{margin:0;color:#78716c;font-size:11px}",
+    ".cfm .row2{grid-column:1/-1;display:flex;justify-content:flex-end;gap:6px;margin-top:10px}",
+    ".cfm button{all:unset;height:26px;padding:0 12px;border-radius:4px;font:600 11px/26px system-ui,-apple-system,'Segoe UI',sans-serif;cursor:pointer;text-align:center}",
+    ".cfm .no{border:1px solid #d6d3d1;background:#fff;line-height:24px}.cfm .no:hover{border-color:#141414}",
+    ".cfm .yes{background:#dc2626;color:#fff;box-shadow:1.5px 1.5px 0 #7f1d1d}.cfm .yes:hover{background:#b91c1c}",
+    ".mh{padding:6px 7px 3px;font:700 9px 'GXPN Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:#a8a29e}",
+    ".menu.open{display:flex}",
+    "@keyframes gx-up{from{opacity:0;transform:translateY(6px)}}",
+    ".menu button{position:relative;justify-content:flex-start;gap:8px;height:28px;padding:0 7px;border-radius:4px;text-align:left;font:inherit;color:#141414}",
+    ".menu button:hover,.menu button:focus-visible{background:#efedeb}",
+    ".mi{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:4px;background:#efedeb;color:#141414}",
+    ".mi svg{width:11px;height:11px}",
+    ".mi.o{background:#ffedd5;color:#c2410c}.mi.b{background:#dbeafe;color:#1d4ed8}.mi.y{background:#fef9c3;color:#a16207}",
+    ".mt{display:flex;align-items:center;gap:6px;min-width:0;flex:1}",
+    ".mt b{font-weight:inherit;white-space:nowrap}",
+    ".mt small{display:none}",
+    ".menu.desc button{height:auto;padding:6px 8px}",
+    ".menu .mt b{font-weight:600;color:#141414}",
+    ".menu.desc .mt{flex-direction:column;align-items:flex-start;gap:1px}",
+    ".menu.desc .mt small{display:block;font:400 10.5px/1.3 system-ui,-apple-system,'Segoe UI',sans-serif;color:#8a8580;white-space:nowrap}",
+    ".menu.desc .mi{width:22px;height:22px}",
+    ".menu kbd{margin-left:auto;padding:0 5px;height:16px;display:inline-grid;place-items:center;border-radius:3px;border:1px solid #e7e5e4;background:#fff;font:600 9px/1 'GXPN Mono',ui-monospace,monospace;color:#78716c}",
+    ".mi.r{background:#fee2e2;color:#b91c1c}.menu .danger .mt b{color:#b91c1c}.menu .danger:hover{background:#fef2f2}",
+    ".mk{display:flex;gap:6px;padding:2px 7px 6px 33px;font:500 9.5px 'GXPN Mono',ui-monospace,monospace;color:#a8a29e}",
+    ".mk span{display:inline-flex;align-items:center;gap:4px}",
+    ".menu .mk kbd{margin:0 3px 0 0;height:15px;padding:0 4px;font-size:8.5px}",
+    ".menu hr{border:0;height:1px;margin:3px 2px;background:#e7e5e4}",
+    ".nav{display:flex;align-items:center}",
+    ".nav button{width:20px;color:#57534e}.nav button:hover{background:#efedeb;color:#141414}",
+    ".nav button[disabled]{opacity:.35;cursor:default;background:none}",
+    ".nav svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
+    ".pos{min-width:34px;text-align:center;font:600 10px 'GXPN Mono',ui-monospace,monospace;color:#a8a29e;letter-spacing:0}",
+    ".pos b{color:#141414}",
+    ".status{display:none;align-items:center;gap:7px;padding:0 1px 0 3px;font:600 10.5px 'GXPN Mono',ui-monospace,monospace;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;color:#141414}",
+    ".status .sdot{width:8px;height:8px;border-radius:50%;background:" + ORANGE + ";box-shadow:0 0 0 3px rgba(255,91,20,.2);animation:gx-pulse 1.4s ease-in-out infinite}",
+    "@keyframes gx-pulse{50%{box-shadow:0 0 0 6px rgba(255,91,20,0)}}",
+    ".status .help{width:22px;height:22px;border-radius:50%;background:#efedeb;color:#57534e;font:700 11px 'GXPN Mono',ui-monospace,monospace}",
+    ".status .help:hover,.status .help[aria-pressed=true]{background:#141414;color:#fff}",
+    ".status .cancel{padding:0 10px;height:24px;background:#141414;color:#fff;font:600 10.5px 'GXPN Mono',ui-monospace,monospace;letter-spacing:.04em;text-transform:uppercase}",
+    ".status .cancel:hover{background:#333}",
+    ".dock.placing .status{display:flex}",
+    ".dock.placing>.nav,.dock.placing>.split,.dock.placing>.dk{display:none}",
+    ".mf{display:flex;flex-direction:column;padding:0}",
+    ".mf label{display:flex;align-items:center;justify-content:space-between;gap:10px;height:28px;padding:0 7px;border-radius:4px;font:inherit;color:#141414;cursor:pointer}",
+    ".mf label:hover{background:#efedeb}",
+    ".mf small{display:block;font:400 10.5px/1.3 system-ui,-apple-system,'Segoe UI',sans-serif;color:#8a8580}",
+    ".mf label{height:auto!important;padding:6px 8px!important}",
+    ".sw{all:unset;position:relative;flex:none;width:26px;height:14px;border-radius:4px;border:1px solid #141414;background:#fff;transition:background .15s;cursor:pointer}",
+    ".sw::after{content:'';position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:2px;background:#141414;transition:transform .15s}",
+    ".sw:checked{background:" + GRAD + ";border-color:" + ORANGE + "}.sw:checked::after{transform:translateX(12px);background:#fff}",
+    // logo: the orange two-eyed mark, now a sticky note (tape on top, folded corner)
+    ".mark{position:relative;display:inline-block;flex:none;font-size:18px;width:1em;height:1em;border-radius:.2em;background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,.6)) no-repeat 50% 0/.44em .13em," + ORANGE + ";clip-path:polygon(0 0,100% 0,100% 70%,70% 100%,0 100%)}",
+    ".mark::before{content:'';position:absolute;left:.21em;top:.34em;width:.19em;height:.19em;border-radius:.04em;background:#141414;box-shadow:.39em 0 0 #141414}",
+    ".mark::after{content:'';position:absolute;right:0;bottom:0;width:.3em;height:.3em;background:linear-gradient(to bottom right,#b9400c 50%,transparent 50%);border-radius:0 0 0 .06em}",
+    ".dock.collapsed>:not(.brand){display:none}",
+    ".dock.moving{animation:none;cursor:grabbing;opacity:.92}",
+    ".dock.down .menu{bottom:auto;top:calc(100% + 8px)}",
+    ".dock.left .menu{right:auto;left:0}",
+    ".dock.moving,.dock.moving .brand{cursor:grabbing}",
+    ".dock .brand{cursor:grab}",
+    ".eye.off{color:#c2410c;background:#fff1e8}",
+    ".dock.down .menu{animation-name:gx-down}",
+    "@keyframes gx-down{from{opacity:0;transform:translateY(-6px)}}",
+    ".hint::after{display:none}",
+    "@keyframes dock-in{from{opacity:0;transform:translateY(14px)}}",
+    "@media (prefers-reduced-motion:reduce){.gxn-note,.dock,.hint,.toast,.menu{animation:none!important}}",
+  ].join("\n");
+
+  var url = PN.normUrl(location.href);
+  var key = PN.keyFor(location.href);
+  var page = null;
+  var visible = true;
+  var settings = {};
+  var lastWrite = 0;
+  var placing = false;
+  var ctxPoint = null;
+  var nodes = {};
+  var navIdx = -1;
+  var dockWanted = false;
+  var revealed = false; // "only when I open Page Notes": notes stay hidden until the user asks this session
+  var dockExpanded = false; // "always, small" toolbar: expanded by a click this session
+  var dockClosed = false; // ✕ on the dock (also saved as settings.dockHidden): hidden until the user adds a new note
+  var guideOpen = true; // guide card visible for this placing session (compact mode starts closed)
+  var mode = "free"; // placing mode: free | el (stick to element) | hl (highlight text)
+  var draggingId = null; // note being dragged/resized: reposition() leaves it alone
+
+  var SVG = {
+    note: '<path d="M4 3h12v9l-4 4H4z"/><path d="M12 16v-4h4"/>',
+    el: '<rect x="3" y="3" width="14" height="14" rx="2" stroke-dasharray="3 2.5"/><circle cx="10" cy="10" r="2"/>',
+    hl: '<path d="M3 17h14M6 13.5l6.5-7.5 3 2.6-6.5 7.4H6z"/>',
+    trash: '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/>',
+    check: '<path d="M4.5 10.5 8 14l7.5-8.5"/>',
+    info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.5v.5"/>',
+    list: '<path d="M7 5h9M7 10h9M7 15h9M3.5 5h.5M3.5 10h.5M3.5 15h.5"/>',
+    eye: '<path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/><path d="M3 3l14 14"/>',
+    eyeOn: '<path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"/><circle cx="10" cy="10" r="2.5"/>',
+    copy: '<rect x="6" y="6" width="10" height="11" rx="1.5"/><path d="M4 13V4.5A1.5 1.5 0 0 1 5.5 3H13"/>',
+    next: '<path d="M10 4v12M5 11l5 5 5-5"/>',
+    more: '<path d="M3.5 6.5h7M14.5 6.5h2M3.5 13.5h2M9.5 13.5h7"/><circle cx="12.5" cy="6.5" r="2"/><circle cx="7.5" cy="13.5" r="2"/>',
+    x: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>',
+    caret: '<path d="M2.5 7.5 6 4l3.5 3.5"/>',
+    left: '<path d="M7.5 2.5 4 6l3.5 3.5"/>',
+    right: '<path d="M4.5 2.5 8 6l-3.5 3.5"/>',
+    gear: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7"/>',
+  };
+  // ---------- mount ----------
+  // an older copy (left behind by an extension reload/update) would show every note twice:
+  // switch it off for good - hidden, not removed, because its observer would put it back
+  document.querySelectorAll("gx-page-notes").forEach(function (old) {
+    old.style.setProperty("display", "none", "important");
+    old.setAttribute("data-gx-stale", "");
+  });
+  injectDocStyle();
+  var host = document.createElement("gx-page-notes");
+  host.setAttribute("style", "all:initial;position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;");
+  var shadow = host.attachShadow({ mode: "closed" });
+  var style = el("style");
+  style.textContent = STYLES;
+  var layer = el("div", "gxn-layer");
+  var fixed = el("div", "fixed lab");
+  var catcher = el("div", "catch");
+  var gh = el("div", "gh");
+  var gv = el("div", "gv");
+  var coord = el("div", "coord");
+  var tx = el("div", "tx"); // highlight mode: shows the text block under the cursor
+  tx.appendChild(el("i", "", "✎ Select text here"));
+  var hl = el("div", "hl");
+  var hlTag = el("i");
+  hl.appendChild(hlTag);
+  var hint = el("div", "hint");
+  var toast = el("div", "toast");
+  var dock = buildDock();
+  fixed.append(hl, tx, gh, gv, coord, catcher, hint, toast, dock.root);
+  shadow.append(style, layer, fixed);
+  document.documentElement.appendChild(host);
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function kbd(t) {
+    return el("kbd", "", t);
+  }
+  function spanWith(parts) {
+    var s = el("span");
+    s.append.apply(s, parts);
+    return s;
+  }
+  function alive() {
+    try {
+      return !!chrome.runtime && !!chrome.runtime.id;
+    } catch (e) {
+      return false;
+    }
+  }
+  function send(msg) {
+    if (!alive()) return Promise.resolve(null);
+    try {
+      return chrome.runtime.sendMessage(msg).catch(function () {
+        return null;
+      });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+  }
+
+  /** Text-highlight colors live in the document; the two UI fonts are handed over by the worker. */
+  function injectDocStyle() {
+    // replace (not skip) an older copy: a previous version's tag may still hold @font-face URLs
+    var old = document.getElementById("gxpn-doc-style");
+    if (old) old.remove();
+    var s = document.createElement("style");
+    s.id = "gxpn-doc-style";
+    s.textContent = PN.COLORS.map(function (c, i) {
+      return "::highlight(gxpn-" + i + "){background-color:" + c + "b3;color:inherit}";
+    }).join("");
+    (document.head || document.documentElement).appendChild(s);
+    loadFonts();
+  }
+  /** The page never requests a chrome-extension:// URL: the worker reads the font files and sends
+   *  their bytes, registered here with the FontFace API (fallback fonts if anything fails). */
+  function loadFonts() {
+    if (typeof FontFace === "undefined" || !document.fonts) return;
+    send({ type: "fonts" }).then(function (r) {
+      if (!r || !r.fonts) return;
+      r.fonts.forEach(function (x) {
+        try {
+          var bin = atob(x.data);
+          var buf = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+          var ff = new FontFace(x.family, buf.buffer, { weight: x.weight, display: "swap" });
+          ff.load().then(
+            function () {
+              document.fonts.add(ff);
+            },
+            function () {},
+          );
+        } catch (e) {}
+      });
+    });
+  }
+
+  // ---------- storage ----------
+  function load() {
+    if (!alive()) return;
+    chrome.storage.local.get([key, "settings"], function (r) {
+      page = r[key] || null;
+      settings = r.settings || {};
+      visible = wantVisible();
+      host.style.display = visible ? "" : "none";
+      renderAll();
+      checkFocus();
+      checkHash();
+    });
+  }
+  function ensurePage() {
+    if (!page) page = { url: url, title: document.title, favicon: favicon(), notes: [], updatedAt: Date.now() };
+    return page;
+  }
+  var saveT = 0;
+  function save(now) {
+    clearTimeout(saveT);
+    saveT = setTimeout(flush, now ? 0 : 350);
+  }
+  function flush() {
+    clearTimeout(saveT);
+    if (!page || !alive()) return;
+    page.updatedAt = lastWrite = Date.now();
+    page.title = document.title || page.title;
+    page.favicon = favicon() || page.favicon;
+    if (page.notes.length) {
+      var o = {};
+      o[key] = page;
+      chrome.storage.local.set(o);
+    } else chrome.storage.local.remove(key);
+    count();
+  }
+  function count() {
+    send({ type: "count", n: page ? page.notes.length : 0 });
+    updateDock();
+  }
+  function favicon() {
+    var l = document.querySelector('link[rel~="icon"][href]');
+    return l ? l.href : location.origin + "/favicon.ico";
+  }
+  var TYPES = { free: ["note", "Note"], el: ["el", "Element"], hl: ["hl", "Highlight"] };
+  function curType() {
+    return TYPES[settings.noteType] ? settings.noteType : "free";
+  }
+  var tipsShown = false;
+  function tipsOn() {
+    return settings.tips !== false;
+  }
+  function svg(name, vb) {
+    var w = document.createElement("span");
+    w.innerHTML = '<svg viewBox="0 0 ' + (vb || 20) + " " + (vb || 20) + '" aria-hidden="true">' + SVG[name] + "</svg>"; // static markup only
+    return w.firstChild;
+  }
+  function setSettings(patch) {
+    for (var k in patch) settings[k] = patch[k];
+    if (alive()) chrome.storage.local.set({ settings: settings });
+  }
+
+  chrome.storage.onChanged.addListener(function (ch, area) {
+    if (area !== "local") return;
+    if (ch.settings) {
+      settings = ch.settings.newValue || {};
+      setVisible(wantVisible(), true);
+      if (!tipsOn()) hint.style.display = "none"; // Tips off anywhere → off on this page too
+      updateDock();
+    }
+    if (ch[key]) {
+      var nv = ch[key].newValue;
+      if (nv && nv.updatedAt === lastWrite) return; // our own write
+      page = nv || null;
+      renderAll();
+      count();
+    }
+    if (ch.focus && ch.focus.newValue) checkFocus();
+  });
+
+  // ---------- anchoring: element (Shift) ----------
+  function under(cx, cy) {
+    var prev = host.style.display;
+    host.style.display = "none";
+    var t = document.elementFromPoint(cx, cy);
+    host.style.display = prev;
+    while (t && t.parentElement && t !== document.body) {
+      var r = t.getBoundingClientRect();
+      if (r.width >= 12 && r.height >= 12 && !(t instanceof SVGElement && t.localName !== "svg")) break;
+      t = t.parentElement;
+    }
+    return t && t !== document.body && t !== document.documentElement ? t : null;
+  }
+  function uniqueId(n) {
+    if (!n.id || /\d{4,}|^[:_]|[:]/.test(n.id)) return false; // skip framework-generated ids
+    try {
+      return document.querySelectorAll("#" + CSS.escape(n.id)).length === 1;
+    } catch (e) {
+      return false;
+    }
+  }
+  function selectorFor(n) {
+    var parts = [];
+    while (n && n.nodeType === 1 && n !== document.body && n !== document.documentElement) {
+      if (uniqueId(n)) {
+        parts.unshift("#" + CSS.escape(n.id));
+        return parts.join(" > ");
+      }
+      var part = n.localName;
+      var parent = n.parentElement;
+      if (parent) {
+        var same = Array.prototype.filter.call(parent.children, function (c) {
+          return c.localName === n.localName;
+        });
+        if (same.length > 1) part += ":nth-of-type(" + (same.indexOf(n) + 1) + ")";
+      }
+      parts.unshift(part);
+      n = parent;
+    }
+    parts.unshift("body");
+    return parts.join(" > ");
+  }
+  function snippet(n) {
+    if (!n) return "";
+    var t = n.getAttribute && (n.getAttribute("aria-label") || n.getAttribute("alt") || n.getAttribute("title"));
+    return String(t || n.innerText || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 90);
+  }
+  function elementAnchor(t, cx, cy) {
+    var r = t.getBoundingClientRect();
+    return { sel: selectorFor(t), fx: r.width ? (cx - r.left) / r.width : 0, dy: cy - r.top };
+  }
+  function label(t) {
+    return t.localName + (t.id ? "#" + t.id : "") + (t.classList.length ? "." + Array.prototype.slice.call(t.classList, 0, 2).join(".") : "");
+  }
+
+  // ---------- anchoring: highlighted text ----------
+  var index = null;
+  var indexDirty = true;
+  var hlRanges = {};
+  function buildIndex() {
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentElement;
+        if (!p || /^(script|style|noscript|textarea|template)$/.test(p.localName)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    var list = [];
+    var starts = [];
+    var text = "";
+    var n;
+    while ((n = w.nextNode())) {
+      list.push(n);
+      starts.push(text.length);
+      text += n.data;
+    }
+    return { nodes: list, starts: starts, text: text };
+  }
+  function getIndex() {
+    if (!index || indexDirty) {
+      index = buildIndex();
+      indexDirty = false;
+    }
+    return index;
+  }
+  function offsetOf(idx, container, off) {
+    if (container.nodeType === 3) {
+      var i = idx.nodes.indexOf(container);
+      return i < 0 ? -1 : idx.starts[i] + off;
+    }
+    var r = document.createRange();
+    r.setStart(container, off);
+    for (var k = 0; k < idx.nodes.length; k++) if (r.comparePoint(idx.nodes[k], 0) >= 0) return idx.starts[k];
+    return idx.text.length;
+  }
+  function pointAt(idx, o) {
+    var lo = 0;
+    var hi = idx.nodes.length - 1;
+    while (lo < hi) {
+      var mid = (lo + hi + 1) >> 1;
+      if (idx.starts[mid] <= o) lo = mid;
+      else hi = mid - 1;
+    }
+    return { node: idx.nodes[lo], off: Math.min(o - idx.starts[lo], idx.nodes[lo].data.length) };
+  }
+  function rangeFor(idx, s, e) {
+    var a = pointAt(idx, s);
+    var b = pointAt(idx, e);
+    var r = document.createRange();
+    r.setStart(a.node, a.off);
+    r.setEnd(b.node, b.off);
+    return r;
+  }
+  /** Selection → {text, prefix, suffix} measured on the page text itself. */
+  function hlFromSelection(sel) {
+    var r = sel.getRangeAt(0);
+    var idx = getIndex();
+    var s = offsetOf(idx, r.startContainer, r.startOffset);
+    var e = offsetOf(idx, r.endContainer, r.endOffset);
+    if (s < 0 || e <= s) return null;
+    e = Math.min(e, s + 600);
+    return { text: idx.text.slice(s, e), prefix: idx.text.slice(Math.max(0, s - 32), s), suffix: idx.text.slice(e, e + 32) };
+  }
+  function findRange(h) {
+    var idx = getIndex();
+    var best = -1;
+    var bestScore = -1;
+    var i = idx.text.indexOf(h.text);
+    while (i > -1) {
+      var score = 0;
+      var pre = idx.text.slice(Math.max(0, i - h.prefix.length), i);
+      var suf = idx.text.slice(i + h.text.length, i + h.text.length + h.suffix.length);
+      for (var k = 1; k <= pre.length && pre[pre.length - k] === h.prefix[h.prefix.length - k]; k++) score++;
+      for (var j = 0; j < suf.length && suf[j] === h.suffix[j]; j++) score++;
+      if (score > bestScore) {
+        bestScore = score;
+        best = i;
+      }
+      i = idx.text.indexOf(h.text, i + 1);
+    }
+    return best < 0 ? null : rangeFor(idx, best, best + h.text.length);
+  }
+  function applyHighlights() {
+    if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") return;
+    PN.COLORS.forEach(function (c, i) {
+      var ranges = [];
+      if (visible && page && !page.hide)
+        page.notes.forEach(function (n) {
+          if (n.hl && n.color === c && hlRanges[n.id]) ranges.push(hlRanges[n.id]);
+        });
+      if (!ranges.length) return CSS.highlights.delete("gxpn-" + i);
+      var h = new Highlight();
+      ranges.forEach(function (r) {
+        h.add(r);
+      });
+      CSS.highlights.set("gxpn-" + i, h);
+    });
+  }
+
+  // ---------- where a note sits (top-left of the card, document px) ----------
+  function shown(t) {
+    if (!t.getClientRects().length) return false;
+    if (t.checkVisibility) return t.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    return true;
+  }
+  function base(n) {
+    if (n.hl) {
+      var r = hlRanges[n.id];
+      var box = r && (r.commonAncestorContainer.nodeType === 1 ? r.commonAncestorContainer : r.commonAncestorContainer.parentElement);
+      if (r && box && shown(box)) {
+        var rects = r.getClientRects();
+        var last = rects[rects.length - 1];
+        if (last) return { x: last.right + scrollX, y: last.bottom + scrollY, d: { dx: 4, dy: 8 } };
+      }
+      return null;
+    }
+    if (n.anchor) {
+      var t = null;
+      try {
+        t = document.querySelector(n.anchor.sel);
+      } catch (e) {}
+      if (t && shown(t)) {
+        var b = t.getBoundingClientRect();
+        return { x: b.left + scrollX + n.anchor.fx * b.width, y: b.top + scrollY + Math.max(0, Math.min(n.anchor.dy, b.height)), d: { dx: -20, dy: -20 }, target: t };
+      }
+      return null;
+    }
+    return { x: 0, y: 0, free: true };
+  }
+  function place(n) {
+    var b = base(n);
+    if (!b) return { x: n.x, y: n.y, lost: true };
+    if (b.free) return { x: n.x, y: n.y };
+    var o = n.off || b.d;
+    return { x: b.x + o.dx, y: b.y + o.dy, target: b.target };
+  }
+
+  // ---------- notes ----------
+  function renderAll() {
+    setTimeout(applyPageHide, 0);
+    layer.textContent = "";
+    nodes = {};
+    hlRanges = {};
+    indexDirty = true;
+    if (page) {
+      resolveHighlights();
+      page.notes.forEach(build);
+    }
+    reposition();
+    updateDock();
+  }
+  function resolveHighlights() {
+    if (!page) return;
+    page.notes.forEach(function (n) {
+      if (n.hl) hlRanges[n.id] = findRange(n.hl);
+    });
+  }
+
+  function build(n) {
+    var root = el("div", "gxn-note");
+    root.setAttribute("role", "note");
+    root.style.background = n.color;
+    root.style.setProperty("--r", (((n.createdAt || 0) % 7) - 3) * 0.8 + "deg");
+    var bar = el("div", "gxn-bar");
+    var dots = PN.COLORS.map(function (c) {
+      var d = el("button", "gxn-dot");
+      d.type = "button";
+      d.style.background = c;
+      d.setAttribute("aria-label", "Color " + c);
+      d.setAttribute("aria-pressed", String(c === n.color));
+      d.onclick = function () {
+        n.color = c;
+        touch(n);
+        root.style.background = c;
+        dots.forEach(function (x) {
+          x.setAttribute("aria-pressed", String(x === d));
+        });
+        applyHighlights();
+        save();
+      };
+      return d;
+    });
+    bar.append.apply(bar, dots);
+    bar.appendChild(el("span", "gxn-sp"));
+    var done = iconBtn("✓", "Mark as done", function () {
+      n.done = !n.done;
+      touch(n);
+      sync(n);
+      save(true);
+    });
+    var link = iconBtn("#", "Copy a link to this note", function () {
+      copy(PN.noteLink(location.href.split("#")[0], n.id), "Link to this note copied");
+    });
+    var min = iconBtn("–", "Fold into a tab", function () {
+      n.min = true;
+      sync(n);
+      save();
+    });
+    var del = iconBtn("✕", "Delete note", function () {
+      remove(n, true); // straight away - the Undo bar in the corner brings it back
+    });
+    var flag = iconBtn("!", "Mark as urgent", function () {
+      n.pri = n.pri === "urgent" ? "" : "urgent";
+      touch(n);
+      sync(n);
+      save(true);
+    });
+    flag.classList.add("gxn-flag");
+    bar.append(flag, done, link, min, del);
+    var text = el("div", "gxn-text");
+    try {
+      text.contentEditable = "plaintext-only";
+    } catch (e) {
+      text.contentEditable = "true";
+    }
+    text.setAttribute("role", "textbox");
+    text.setAttribute("aria-multiline", "true");
+    text.setAttribute("aria-label", "Note text");
+    text.dataset.ph = "Write a note…";
+    text.textContent = n.text;
+    // read mode: links become pills; click the text to edit again
+    var view = el("div", "gxn-view");
+    var refreshView = function () {
+      var has = PN.links(n.text).length > 0 && shadow.activeElement !== text;
+      root.classList.toggle("viewing", has);
+      if (has) {
+        view.textContent = "";
+        view.appendChild(PN.rich(n.text));
+      }
+    };
+    view.onclick = function (e) {
+      if (e.target.closest("a")) return;
+      root.classList.remove("viewing");
+      text.focus();
+      var r = document.createRange();
+      r.selectNodeContents(text);
+      r.collapse(false);
+      var sel = getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    };
+    text.onfocus = function () {
+      root.classList.remove("viewing");
+    };
+    text.oninput = function () {
+      n.text = text.innerText.replace(/\n$/, "");
+      touch(n);
+      clearTimeout(text._t);
+      text._t = setTimeout(function () {
+        meta(n);
+      }, 400);
+      save();
+    };
+    text.onpaste = function (e) {
+      // keep it plain text everywhere
+      e.preventDefault();
+      document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
+    };
+    text.onblur = function () {
+      setTimeout(refreshView, 0); // empty notes stay on the page until the user deletes them
+      // finished writing → retake the snapshot so it shows the note with its text
+      if (n.text !== root._shotText) setTimeout(function () {
+        if (shadow.activeElement !== text) shootNote(n);
+      }, 250);
+    };
+    var m = el("div", "gxn-meta");
+    var stamp = el("span", "gxn-stamp", "Done");
+    var num = el("button", "gxn-num");
+    num.type = "button";
+    num.setAttribute("aria-label", "Unfold note");
+    var rs = el("span", "gxn-rs");
+    rs.title = "Resize";
+    root.append(bar, text, view, m, stamp, num, rs);
+    if (n.w) {
+      root.classList.add("sized");
+      root.style.width = n.w + "px";
+      root.style.height = n.h + "px";
+    }
+    layer.appendChild(root);
+    nodes[n.id] = { root: root, text: text, meta: m, num: num, done: done, flag: flag };
+    refreshView();
+    resizable(rs, n, root);
+
+    draggable(bar, n, null);
+    draggable(num, n, function () {
+      n.min = false;
+      sync(n);
+      text.focus();
+      save();
+    });
+    root.onmouseenter = function () {
+      var p = place(n);
+      if (p.target && !placing) outline(p.target);
+    };
+    root.onmouseleave = function () {
+      if (!placing) hl.style.display = "none";
+    };
+    sync(n);
+    return root;
+  }
+  function iconBtn(t, label_, fn) {
+    var b = el("button", "gxn-x", t);
+    b.type = "button";
+    b.title = label_;
+    b.setAttribute("aria-label", label_);
+    b.onclick = fn;
+    return b;
+  }
+  function touch(n) {
+    n.updatedAt = Date.now();
+  }
+  function ordinal(n) {
+    return page ? page.notes.indexOf(n) + 1 : 0;
+  }
+  function sync(n) {
+    var k = nodes[n.id];
+    if (!k) return;
+    k.root.classList.toggle("min", !!n.min);
+    if (n.done) k.root.setAttribute("data-done", "");
+    else k.root.removeAttribute("data-done");
+    k.done.setAttribute("aria-pressed", String(!!n.done));
+    k.root.classList.toggle("urgent", n.pri === "urgent");
+    k.flag.setAttribute("aria-pressed", String(n.pri === "urgent"));
+    k.num.textContent = PN.pad(ordinal(n));
+    k.root.setAttribute("aria-label", "Page note " + ordinal(n) + (n.done ? " (done)" : ""));
+    meta(n);
+  }
+  function meta(n, lost) {
+    var k = nodes[n.id];
+    if (!k) return;
+    var m = k.meta;
+    m.textContent = "";
+    m.append(el("span", "", "#" + PN.pad(ordinal(n)) + " · " + PN.when(n.updatedAt || n.createdAt)));
+    if (lost) m.append(el("span", "gxn-lost", n.hl ? "text changed" : "element moved"));
+    else if (n.hl) m.append(el("span", "gxn-q", "▍“" + n.hl.text.replace(/\s+/g, " ").trim().slice(0, 40) + "”"));
+    else if (n.anchor && n.quote) m.append(el("span", "gxn-q", "⌖ " + n.quote.slice(0, 32)));
+    if (n.pri === "urgent") m.append(el("span", "gxn-urg", "URGENT"));
+  }
+
+  /** Keep a note inside the page horizontally (no sideways overflow) and below the top. */
+  function clampX(x, w) {
+    var pw = Math.max(document.documentElement.clientWidth, document.body ? document.body.scrollWidth : 0);
+    return Math.max(4, Math.min(x, pw - w - 8));
+  }
+  function clampY(y) {
+    return Math.max(4, y);
+  }
+  function reposition() {
+    if (!page) return;
+    page.notes.forEach(function (n) {
+      var k = nodes[n.id];
+      if (!k || n.id === draggingId) return;
+      var p = place(n);
+      // anchored to something hidden (closed menu, modal, tab...) -> only show when it's visible again
+      k.root.style.display = p.lost && !k.forced ? "none" : "";
+      k.root.style.left = clampX(p.x, k.root.offsetWidth || 190) + "px";
+      k.root.style.top = clampY(p.y) + "px";
+      if (!p.lost) {
+        n.x = p.x;
+        n.y = p.y;
+      }
+      if (!!k.lost !== !!p.lost) {
+        k.lost = !!p.lost;
+        meta(n, p.lost);
+      }
+    });
+    applyHighlights();
+  }
+  var rpT = 0;
+  var lastIndexAt = 0;
+  function scheduleReposition(contentChanged) {
+    if (contentChanged) indexDirty = true;
+    clearTimeout(rpT);
+    rpT = setTimeout(function () {
+      requestAnimationFrame(function () {
+        // re-find highlighted text at most ~once a second
+        if (indexDirty && page && page.notes.some(function (n) { return n.hl; }) && Date.now() - lastIndexAt > 900) {
+          lastIndexAt = Date.now();
+          resolveHighlights();
+        }
+        reposition();
+      });
+    }, 140);
+  }
+
+  /** Drag by the bar (or the folded tab) anywhere. Hold Shift on drop to stick it to the element underneath. */
+  function draggable(handle, n, onTap) {
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      if (handle.classList.contains("gxn-bar") && e.target !== handle && e.target.closest("button")) return;
+      e.preventDefault();
+      var p = place(n);
+      var sx = e.clientX;
+      var sy = e.clientY;
+      var moved = false;
+      var root = nodes[n.id].root;
+      handle.setPointerCapture(e.pointerId);
+      var move = function (m) {
+        var dx = m.clientX - sx;
+        var dy = m.clientY - sy;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+        if (!moved) {
+          draggingId = n.id;
+          root.classList.add("dragging");
+        }
+        moved = true;
+        root.style.left = clampX(p.x + dx, root.offsetWidth) + "px";
+        root.style.top = clampY(p.y + dy) + "px";
+        root.style.zIndex = "2";
+        if (m.shiftKey) {
+          var t = under(m.clientX, m.clientY);
+          if (t) outline(t);
+        } else hl.style.display = "none";
+      };
+      var up = function (u) {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        root.style.zIndex = "";
+        hl.style.display = "none";
+        draggingId = null;
+        root.classList.remove("dragging");
+        if (!moved) {
+          if (onTap) onTap();
+          return;
+        }
+        var nx = clampX(p.x + (u.clientX - sx), root.offsetWidth);
+        var ny = clampY(p.y + (u.clientY - sy));
+        var t = u.shiftKey ? under(u.clientX, u.clientY) : null;
+        if (t) {
+          n.anchor = elementAnchor(t, u.clientX, u.clientY);
+          n.hl = null;
+          n.quote = snippet(t);
+          n.off = null;
+          var b = base(n);
+          if (b) n.off = { dx: nx - b.x, dy: ny - b.y };
+          say("Stuck to " + label(t));
+        } else {
+          var b2 = base(n);
+          if (b2 && !b2.free) n.off = { dx: nx - b2.x, dy: ny - b2.y }; // keeps following its element/text
+          n.x = nx;
+          n.y = ny;
+        }
+        touch(n);
+        reposition();
+        save(true);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+    });
+  }
+
+  /** Corner handle: resize between 160x110 and 460x480 (saved as n.w / n.h). */
+  function resizable(handle, n, root) {
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var sx = e.clientX;
+      var sy = e.clientY;
+      var w0 = root.offsetWidth;
+      var h0 = root.offsetHeight;
+      draggingId = n.id;
+      root.classList.add("resizing", "sized");
+      handle.setPointerCapture(e.pointerId);
+      var move = function (m) {
+        root.style.width = Math.max(160, Math.min(460, w0 + m.clientX - sx)) + "px";
+        root.style.height = Math.max(110, Math.min(480, h0 + m.clientY - sy)) + "px";
+      };
+      var up = function () {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        draggingId = null;
+        root.classList.remove("resizing");
+        n.w = root.offsetWidth;
+        n.h = root.offsetHeight;
+        touch(n);
+        reposition();
+        save(true);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+    });
+  }
+
+  /** opts: {cx, cy, target?, hl?, quote?} — viewport coords of the spot the user chose. */
+  function create(opts) {
+    if (!visible) setVisible(true);
+    reopenDock(); // a new note brings the toolbar back
+    if (page && page.hide) setPageHidden(false); // ...and the page's notes
+    ensurePage();
+    var now = Date.now();
+    var n = { id: PN.uid(), text: "", color: PN.COLORS[page.notes.length % PN.COLORS.length], x: opts.cx + scrollX - 20, y: opts.cy + scrollY - 20, anchor: null, hl: null, off: null, quote: "", done: false, min: false, createdAt: now, updatedAt: now };
+    if (opts.hl) {
+      n.hl = opts.hl;
+      n.color = PN.COLORS[0];
+      n.quote = opts.hl.text.replace(/\s+/g, " ").trim().slice(0, 160);
+    } else if (opts.target) {
+      n.anchor = elementAnchor(opts.target, opts.cx, opts.cy);
+      n.quote = snippet(opts.target);
+    }
+    page.notes.push(n);
+    if (n.hl) hlRanges[n.id] = findRange(n.hl);
+    var root = build(n);
+    reposition();
+    updateDock();
+    // snapshot with the note on it (retaken when the user finishes writing)
+    shootNote(n).then(function () {
+      var k = nodes[n.id];
+      if (k) k.text.focus({ preventScroll: true });
+      save(true);
+    });
+    return n;
+  }
+
+  /** Snapshot centered on the note itself (visible in the picture). */
+  function shootNote(n) {
+    var k = nodes[n.id];
+    if (!k || !visible) return Promise.resolve();
+    var r = k.root.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return Promise.resolve(); // off screen: keep the old one
+    k.root._shotText = n.text;
+    return shoot(n.id, r.left + r.width / 2, r.top + r.height / 2);
+  }
+  /** Ask the worker for a cropped screenshot around the spot (shown in “All my notes”). */
+  function shoot(id, cx, cy) {
+    if (settings.snapshots === false) return Promise.resolve();
+    // the HUD (dock, guides, outline) must not end up in the picture
+    fixed.style.visibility = "hidden";
+    hint.style.display = "none";
+    hl.style.display = gh.style.display = gv.style.display = coord.style.display = "none";
+    return new Promise(function (res) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          var done = false;
+          var fin = function () {
+            if (done) return;
+            done = true;
+            fixed.style.visibility = "";
+            res();
+          };
+          setTimeout(fin, 900);
+          send({ type: "shot", id: id, x: cx, y: cy, vw: innerWidth, vh: innerHeight }).then(fin);
+        });
+      });
+    });
+  }
+
+  function remove(n, undoable) {
+    if (!page) return;
+    var i = page.notes.indexOf(n);
+    if (i < 0) return;
+    page.notes.splice(i, 1);
+    var hadText = !!n.text.trim() || !!n.hl;
+    renderAll();
+    flush();
+    hl.style.display = "none";
+    var undone = false;
+    setTimeout(function () {
+      if (!undone && alive()) chrome.storage.local.remove(PN.SHOT + n.id);
+    }, 6000);
+    if (undoable && hadText)
+      say("Note deleted", "Undo", function () {
+        undone = true;
+        ensurePage().notes.splice(Math.min(i, page.notes.length), 0, n);
+        renderAll();
+        save(true);
+      });
+  }
+
+  /** Delete every note on this page — with an Undo bar (or a confirm when Undo is turned off). */
+  function removeAll() {
+    if (!page || !page.notes.length) return say("No notes on this page");
+    var cnt = page.notes.length;
+    askConfirm(cnt === 1 ? "Delete 1 note?" : "Delete all " + cnt + " notes?", "Every note on this page will be removed.", "Delete all", reallyRemoveAll);
+  }
+  function reallyRemoveAll() {
+    if (!page || !page.notes.length) return;
+    var old = page.notes.slice();
+    var msg = old.length === 1 ? "1 note deleted" : old.length + " notes deleted";
+    page.notes = [];
+    renderAll();
+    flush();
+    hl.style.display = "none";
+    var undone = false;
+    setTimeout(function () {
+      if (!undone && alive())
+        chrome.storage.local.remove(
+          old.map(function (n) {
+            return PN.SHOT + n.id;
+          }),
+        );
+    }, 6500);
+    say(msg, "Undo", function () {
+      undone = true;
+      ensurePage().notes = old.concat(page.notes);
+      renderAll();
+      save(true);
+    });
+  }
+
+  // ---------- placing mode (free by default, Shift = stick to element) ----------
+  function outline(t) {
+    var r = t.getBoundingClientRect();
+    Object.assign(hl.style, { display: "block", left: r.left - 3 + "px", top: r.top - 3 + "px", width: r.width + 6 + "px", height: r.height + 6 + "px" });
+    hlTag.textContent = "⌖ " + label(t);
+  }
+  var mvRaf = 0;
+  function guides(cx, cy, snap) {
+    fixed.classList.toggle("snap", !!snap);
+    gh.style.display = gv.style.display = "block";
+    coord.style.display = "flex";
+    gh.style.top = cy + "px";
+    gv.style.left = cx + "px";
+    coord.style.left = Math.min(cx + 14, innerWidth - 150) + "px";
+    coord.style.top = Math.min(cy + 14, innerHeight - 30) + "px";
+    coord.textContent = "";
+    var ty = placing ? mode : curType();
+    var chip = el("span", "ai t-" + ty);
+    chip.append(svg(TYPES[ty][0]));
+    coord.append(chip);
+    var cx_ = el("span", "cxy");
+    coord.append(cx_);
+    cx_.append("X ", el("b", "", String(Math.round(cx + scrollX)).padStart(4, "0")), " · Y ", el("b", "", String(Math.round(cy + scrollY)).padStart(4, "0")), snap ? " · STICK" : "");
+  }
+  catcher.addEventListener("mousemove", function (e) {
+    cancelAnimationFrame(mvRaf);
+    mvRaf = requestAnimationFrame(function () {
+      if (!placing) return;
+      var stick = e.shiftKey || mode === "el";
+      guides(e.clientX, e.clientY, stick);
+      var t = stick ? under(e.clientX, e.clientY) : null;
+      if (t) outline(t);
+      else hl.style.display = "none";
+    });
+  });
+  // Note (general) mode: click = note · Shift+click = element · drag over text = highlight
+  var skipClick = false;
+  function caretAt(cx, cy) {
+    if (!document.caretRangeFromPoint) return null;
+    var pe = catcher.style.pointerEvents;
+    catcher.style.pointerEvents = "none"; // hit-test the page, not our overlay (display:none would cancel the click)
+    var r = document.caretRangeFromPoint(cx, cy);
+    catcher.style.pointerEvents = pe;
+    return r && r.startContainer.nodeType === 3 ? r : null;
+  }
+  // Over text (Note mode) the overlay lets the mouse through: native text cursor + selection.
+  var overText = false;
+  function setOverText(v) {
+    overText = v;
+    catcher.style.pointerEvents = v ? "none" : "";
+    if (!v) tx.style.display = "none";
+  }
+  // Note mode stays a plain "click to pin": text (T / Alt+Shift+L) and elements (Shift, E / Alt+Shift+E) only on shortcut
+  catcher.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (skipClick) return; // that was a text drag, not a click
+    var t = e.shiftKey || mode === "el" ? under(e.clientX, e.clientY) : null;
+    if (mode === "el" && !t) return; // element mode: only an element can take the note
+    stopPlacing();
+    create({ cx: e.clientX, cy: e.clientY, target: t });
+  });
+  var HINTS = {
+    free: ["note", "Click anywhere to pin a note", [["Shift", "+ click: element"], ["T", "text"], ["E", "elements"], ["Esc", "cancel"]]],
+    el: ["el", "Click a button, image or block", [["", "the note will follow it"], ["N", "note"], ["T", "text"], ["Esc", "cancel"]]],
+    hl: ["hl", "Select the text you want to highlight", [["", "a note is added next to it"], ["N", "note"], ["E", "element"], ["Esc", "cancel"]]],
+  };
+  function showHint() {
+    var canGuide = placing && tipsOn() && settings.guide !== false;
+    if (dock) {
+      dock.help.style.display = canGuide ? "" : "none";
+      dock.help.setAttribute("aria-pressed", String(canGuide && guideOpen));
+    }
+    if (!canGuide || !guideOpen) return (hint.style.display = "none");
+    var h_ = HINTS[mode];
+    hint.textContent = "";
+    var ic = el("span", "hi-ic");
+    ic.append(svg(h_[0]));
+    var tx = el("span", "hi-tx");
+    var sm = el("small");
+    h_[2].forEach(function (k) {
+      var sp = el("span");
+      if (k[0]) sp.append(kbd(k[0]));
+      sp.append(k[1]);
+      sm.append(sp);
+    });
+    tx.append(el("b", "", h_[1]), sm);
+    var x = el("button", "hi-x");
+    x.type = "button";
+    x.title = "Hide the guide";
+    x.append(svg("x"));
+    x.onclick = function () {
+      guideOpen = false;
+      showHint();
+    };
+    hint.append(ic, tx, x);
+    hint.style.display = "flex";
+    tipsShown = true;
+  }
+  /** Change the kind of note while placing (N / E / T keys). */
+  function switchMode(m) {
+    if (!placing || mode === m) return;
+    mode = m;
+    if (overText) setOverText(false);
+    tx.style.display = hl.style.display = "none";
+    catcher.style.display = mode === "hl" ? "none" : "block";
+    updateDock();
+    showHint();
+  }
+  /** m: "free" (default) | "el" stick to an element | "hl" highlight text */
+  function startPlacing(m) {
+    if (!visible) setVisible(true);
+    mode = m || curType();
+    var sel = getSelection();
+    var hasSel = sel && !sel.isCollapsed && String(sel).trim().length > 1 && !host.contains(sel.anchorNode);
+    if (hasSel && mode !== "el") return highlightSelection(sel);
+    placing = true;
+    dockWanted = true;
+    reopenDock();
+    guideOpen = settings.guideMode !== "compact";
+    catcher.style.display = mode === "hl" ? "none" : "block"; // highlight mode: let the user select text
+    updateDock();
+    showHint();
+  }
+  // highlight mode: the crosshair follows the mouse while the user selects text
+  document.addEventListener(
+    "mousemove",
+    function (e) {
+      if (!placing || mode !== "hl") return;
+      cancelAnimationFrame(mvRaf);
+      mvRaf = requestAnimationFrame(function () {
+        if (!(placing && mode === "hl")) return;
+        guides(e.clientX, e.clientY, false);
+        textUnder(e.clientX, e.clientY);
+      });
+    },
+    true,
+  );
+  /** Highlight mode: outline the text block under the cursor so users see what can be selected. */
+  function textUnder(cx, cy) {
+    var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(cx, cy) : null;
+    var node = r && r.startContainer;
+    if (node && node.nodeType === 3 && node.textContent.trim().length > 1) {
+      var rr = document.createRange();
+      rr.selectNodeContents(node);
+      var b = rr.getBoundingClientRect();
+      if (b.width && cx >= b.left - 6 && cx <= b.right + 6 && cy >= b.top - 6 && cy <= b.bottom + 6) {
+        Object.assign(tx.style, { display: "block", left: b.left - 4 + "px", top: b.top - 3 + "px", width: b.width + 8 + "px", height: b.height + 6 + "px" });
+        return;
+      }
+    }
+    tx.style.display = "none";
+  }
+  // highlight mode: as soon as the user finishes a text selection, turn it into a note
+  document.addEventListener("mouseup", function (e) {
+    if (!placing || mode !== "hl" || e.target === host) return;
+    setTimeout(function () {
+      var sel = getSelection();
+      if (sel && !sel.isCollapsed && String(sel).trim().length > 1) {
+        stopPlacing();
+        highlightSelection(sel);
+      }
+    }, 0);
+  });
+  function stopPlacing() {
+    if (placing && tipsShown && settings.tips === undefined) setSettings({ tips: false }); // seen once → off until wanted again
+    tipsShown = false;
+    placing = false;
+    if (overText) setOverText(false);
+    mode = "free";
+    guideOpen = false;
+    cancelAnimationFrame(mvRaf);
+    catcher.style.display = "none";
+    hint.style.display = "none";
+    hl.style.display = gh.style.display = gv.style.display = coord.style.display = tx.style.display = "none";
+    updateDock();
+  }
+  function highlightSelection(sel) {
+    var h = hlFromSelection(sel);
+    if (!h || !h.text.trim()) return false;
+    var rects = sel.getRangeAt(0).getClientRects();
+    var last = rects[rects.length - 1] || sel.getRangeAt(0).getBoundingClientRect();
+    sel.removeAllRanges();
+    dockWanted = true;
+    create({ cx: last.right, cy: last.bottom, hl: h });
+    return true;
+  }
+  window.addEventListener(
+    "keydown",
+    function (e) {
+      if (e.key === "Escape" && cfm && cfm.classList.contains("on")) {
+        e.stopPropagation();
+        return cfm.classList.remove("on");
+      }
+      if (!placing) return;
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        stopPlacing();
+        return;
+      }
+      // while placing only: N / E / T switch the kind of note (never while typing)
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.target === host) return;
+      var t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      var k = { n: "free", e: "el", t: "hl" }[(e.key || "").toLowerCase()];
+      if (!k) return;
+      e.preventDefault();
+      e.stopPropagation();
+      switchMode(k);
+    },
+    true,
+  );
+  document.addEventListener(
+    "contextmenu",
+    function (e) {
+      if (e.target === host) return;
+      ctxPoint = { x: e.clientX, y: e.clientY, sx: scrollX, sy: scrollY, target: e.target };
+    },
+    true,
+  );
+
+  // keep typing in a note from triggering the site's own keyboard shortcuts
+  // (typing still works: we stop propagation, not the default action)
+  ["keydown", "keyup", "keypress"].forEach(function (t) {
+    window.addEventListener(
+      t,
+      function (e) {
+        if (e.target !== host) return;
+        e.stopImmediatePropagation();
+        if (t === "keydown" && e.key === "Escape" && shadow.activeElement) shadow.activeElement.blur();
+      },
+      true,
+    );
+  });
+
+  // ---------- dock ----------
+  function buildDock() {
+    var root = el("div", "dock");
+    root.setAttribute("role", "toolbar");
+    root.setAttribute("aria-label", "Page Notes");
+    var brand = el("button", "brand");
+    brand.type = "button";
+    brand.title = "Page Notes";
+    var cnt = el("span", "cnt", "0");
+    brand.append(el("span", "mark"), cnt);
+    brand.onclick = function () {
+      if (brand._dragged) return (brand._dragged = false); // that was a move, not a click
+      if ((settings.dock || "auto") === "mini") dockExpanded = !dockExpanded;
+      else setSettings({ dockFolded: !settings.dockFolded });
+      closeMenus();
+      updateDock();
+    };
+    // drag the toolbar by its logo; on release it snaps to the nearest side, keeping its height
+    var startDrag = function (e, handle) {
+      if (e.button !== 0) return;
+      var r0 = root.getBoundingClientRect();
+      var sx = e.clientX;
+      var sy = e.clientY;
+      var moved = false;
+      handle.setPointerCapture(e.pointerId);
+      var move = function (m) {
+        var dx = m.clientX - sx;
+        var dy = m.clientY - sy;
+        if (!moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+        moved = true;
+        closeMenus();
+        root.classList.add("moving");
+        var left = Math.max(4, Math.min(innerWidth - r0.width - 4, r0.left + dx));
+        var top = Math.max(4, Math.min(innerHeight - r0.height - 4, r0.top + dy));
+        root.style.left = left + "px";
+        root.style.right = "auto";
+        root.style.bottom = innerHeight - top - r0.height + "px";
+      };
+      var up = function () {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        root.classList.remove("moving");
+        if (!moved) return;
+        brand._dragged = true;
+        setTimeout(function () {
+          brand._dragged = false;
+        }, 0);
+        var r = root.getBoundingClientRect();
+        var side = r.left + r.width / 2 < innerWidth / 2 ? "l" : "r";
+        setSettings({ dockPos: { side: side, b: Math.round(innerHeight - r.bottom) } });
+        placeDock();
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+    };
+    brand.addEventListener("pointerdown", function (e) {
+      startDrag(e, brand);
+    });
+
+    // split button: [+ Note] places a simple note (or drag it out) | [caret] picks the kind of note
+    var split = el("div", "split");
+    var add = el("button", "new");
+    add.type = "button";
+    add.title = "Click, then click the page - or drag me onto the page";
+    dragToCreate(add);
+    var caret = el("button", "caret");
+    caret.type = "button";
+    caret.title = "Choose the kind of note";
+    caret.setAttribute("aria-haspopup", "menu");
+    caret.setAttribute("aria-expanded", "false");
+    caret.append(svg("caret", 12));
+    split.append(add, caret);
+
+    var nav = el("div", "nav");
+    var prev = el("button");
+    prev.type = "button";
+    prev.title = "Previous note";
+    prev.append(svg("left", 12));
+    var pos = el("span", "pos");
+    var next = el("button");
+    next.type = "button";
+    next.title = "Next note";
+    next.append(svg("right", 12));
+    prev.onclick = function () {
+      step(-1);
+    };
+    next.onclick = function () {
+      step(1);
+    };
+    nav.append(prev, pos, next);
+
+    // placing status: replaces the toolbar while a note is being placed
+    var status = el("div", "status");
+    var stLabel = el("span", "st-l");
+    var help = el("button", "help", "?");
+    help.type = "button";
+    help.title = "How does it work?";
+    help.onclick = function () {
+      guideOpen = !guideOpen;
+      showHint();
+    };
+    var cancel = el("button", "cancel", "Cancel");
+    cancel.type = "button";
+    cancel.title = "Cancel (Esc)";
+    cancel.onclick = stopPlacing;
+    status.append(el("span", "sdot"), stLabel, help, cancel);
+
+    var more = el("button", "dk");
+    more.type = "button";
+    more.title = "Options";
+    more.setAttribute("aria-haspopup", "menu");
+    more.append(svg("more"));
+    var eye = el("button", "dk eye");
+    eye.type = "button";
+    eye.onclick = function () {
+      setPageHidden(!pageHidden());
+    };
+    var close = el("button", "dk");
+    close.type = "button";
+    close.title = "Close the toolbar (your notes stay)";
+    close.append(svg("x"));
+    close.onclick = function () {
+      closeMenus();
+      // done working: hide the toolbar and the notes (Alt+Shift+H, Settings or a new note brings them back)
+      dockClosed = true; // toolbar only - the notes stay as they are
+      setSettings({ dockHidden: true }); // remembered: stays closed until the next new note
+      if (settings.dockFolded) setSettings({ dockFolded: false });
+      updateDock();
+    };
+
+    var item = function (menu, ic, tone, title, sub, k, fn) {
+      var b = el("button");
+      b.type = "button";
+      b.setAttribute("role", "menuitem");
+      var i = el("span", "mi" + (tone ? " " + tone : ""));
+      i.append(svg(ic));
+      var t = el("span", "mt");
+      t.append(el("b", "", title), el("small", "", sub));
+      b.title = sub;
+      b.append(i, t);
+      if (k) b.append(kbd(k));
+      b.onclick = function () {
+        closeMenus();
+        fn();
+      };
+      menu.appendChild(b);
+      return b;
+    };
+
+    var modes = el("div", "menu");
+    modes.setAttribute("role", "menu");
+    modes.classList.add("desc");
+    modes.append(el("div", "mh", "Type of note"));
+    var pick = function (t) {
+      return function () {
+        setSettings({ noteType: t }); // remembered: every new note uses this type
+        updateDock();
+        startPlacing(t);
+      };
+    };
+    var typeItems = {
+      free: item(modes, "note", "o", "Note", "Pin it anywhere on the page", "Alt+Shift+N", pick("free")),
+      el: item(modes, "el", "b", "Element", "Sticks to a button, image or block", "Alt+Shift+E", pick("el")),
+      hl: item(modes, "hl", "y", "Text", "Highlight text, note next to it", "Alt+Shift+L", pick("hl")),
+    };
+
+    var menu = el("div", "menu");
+    menu.setAttribute("role", "menu");
+    menu.classList.add("desc");
+    menu.append(el("div", "mh", "This page"));
+    item(menu, "list", "", "All my notes", "See every note, on every site", "", function () {
+      send({ type: "open-dashboard" });
+    });
+    item(menu, "copy", "", "Copy as text", "This page's notes, ready to paste", "", function () {
+      var txt = (page ? page.notes : [])
+        .map(function (n, i) {
+          return "#" + PN.pad(i + 1) + (n.done ? " [done]" : "") + " " + (n.hl ? "\u201c" + n.hl.text.trim() + "\u201d - " : "") + n.text;
+        })
+        .join("\n\n");
+      copy((document.title || url) + "\n" + url + "\n\n" + txt, "Notes copied as text");
+    });
+    var wipe = item(menu, "trash", "r", "Delete all here", "Remove every note on this page", "", function () {
+      removeAll();
+    });
+    wipe.classList.add("danger");
+    item(menu, "gear", "", "Settings", "Toolbar, tips, language and more", "", function () {
+      send({ type: "open-settings" });
+    });
+    menu.appendChild(el("hr"));
+    // quick switches
+    menu.append(el("div", "mh", "Show"));
+    var mf = el("div", "mf");
+    var sw = function (title, sub, get, set) {
+      var l = el("label");
+      var t = el("span");
+      t.append(title, el("small", "", sub));
+      var c = el("input", "sw");
+      c.type = "checkbox";
+      c.checked = get();
+      c.onchange = function () {
+        set(c.checked);
+      };
+      l.append(t, c);
+      mf.append(l);
+      return c;
+    };
+    var swNotes = sw("This page's notes", "Hide or show them here (Alt+Shift+H)", function () {
+      return !pageHidden();
+    }, function (v) {
+      setPageHidden(!v);
+    });
+    var swTips = sw("Tips", "Guides and messages - on all pages", function () {
+      return tipsOn();
+    }, function (v) {
+      setSettings({ tips: v }); // global: every open page picks it up right away
+      if (!v) hint.style.display = "none";
+    });
+    menu.append(mf);
+
+    caret.onclick = function () {
+      var open = !modes.classList.contains("open");
+      closeMenus();
+      modes.classList.toggle("open", open);
+      caret.setAttribute("aria-expanded", String(open));
+    };
+    more.onclick = function () {
+      swNotes.checked = !pageHidden();
+      swTips.checked = tipsOn();
+      var open = !menu.classList.contains("open");
+      closeMenus();
+      menu.classList.toggle("open", open);
+    };
+    var vr = function (c) {
+      return el("span", "vr" + (c ? " " + c : ""));
+    };
+    root.append(brand, vr("n"), nav, vr("n"), split, status, vr(), eye, more, close, modes, menu);
+    return { eye: eye, root: root, cnt: cnt, menu: menu, modes: modes, caret: caret, pos: pos, prev: prev, next: next, help: help, stLabel: stLabel, add: add, typeItems: typeItems };
+  }
+  /** Saved toolbar spot: stuck to the left or right edge, at the height the user dropped it. */
+  function dockSide() {
+    var p = settings.dockPos;
+    return p && p.side === "l" ? "l" : "r";
+  }
+  function placeDock() {
+    var p = settings.dockPos || {};
+    var b = isFinite(p.b) ? p.b : 16;
+    var side = dockSide();
+    dock.root.style.bottom = Math.max(4, Math.min(b, innerHeight - 44)) + "px";
+    dock.root.style.left = side === "l" ? "16px" : "auto";
+    dock.root.style.right = side === "r" ? "16px" : "auto";
+    dock.root.classList.toggle("left", side === "l");
+    placePopovers();
+  }
+  /** Menus, guide card and messages open toward the free space (side + up/down). */
+  function placePopovers() {
+    var side = dockSide();
+    var bottom = parseFloat(dock.root.style.bottom) || 16;
+    var down = innerHeight - bottom < innerHeight / 2; // toolbar in the upper half → open downward
+    var h = dock.root.offsetHeight || 32;
+    dock.root.classList.toggle("down", down);
+    [hint, toast].forEach(function (n) {
+      n.style.left = side === "l" ? "16px" : "auto";
+      n.style.right = side === "r" ? "16px" : "auto";
+      if (down) {
+        n.style.top = innerHeight - bottom + 10 + "px";
+        n.style.bottom = "auto";
+      } else {
+        n.style.bottom = bottom + h + 10 + "px";
+        n.style.top = "auto";
+      }
+    });
+  }
+  addEventListener("resize", function () {
+    if (dock) placeDock();
+  });
+  /** Only adding a new note brings a closed toolbar back. */
+  function reopenDock() {
+    dockClosed = false;
+    if (settings.dockHidden) setSettings({ dockHidden: false });
+  }
+  /** Small confirm dialog in the toolbar's style. */
+  var cfm = null;
+  function askConfirm(title, text, okLabel, fn) {
+    if (!cfm) {
+      cfm = el("div", "cfm-bg");
+      var box = el("div", "cfm");
+      var ic = el("span", "ci2");
+      ic.append(svg("trash"));
+      cfm._t = el("b");
+      cfm._p = el("p");
+      var row = el("div", "row2");
+      cfm._no = el("button", "no", "Cancel");
+      cfm._yes = el("button", "yes");
+      cfm._no.type = cfm._yes.type = "button";
+      row.append(cfm._no, cfm._yes);
+      box.append(ic, cfm._t, cfm._p, row);
+      cfm.append(box);
+      cfm.onclick = function (e) {
+        if (e.target === cfm) cfm.classList.remove("on");
+      };
+      cfm._no.onclick = function () {
+        cfm.classList.remove("on");
+      };
+      fixed.append(cfm);
+    }
+    cfm._t.textContent = title;
+    cfm._p.textContent = text;
+    cfm._yes.textContent = okLabel || "Delete";
+    cfm._yes.onclick = function () {
+      cfm.classList.remove("on");
+      fn();
+    };
+    cfm.classList.add("on");
+    cfm._no.focus();
+  }
+  function closeMenus() {
+    dock.menu.classList.remove("open");
+    dock.modes.classList.remove("open");
+    dock.caret.setAttribute("aria-expanded", "false");
+  }
+  // menus close on any click outside the dock
+  document.addEventListener(
+    "pointerdown",
+    function (e) {
+      if (dock && e.target !== host) closeMenus(); // clicks inside our (closed) shadow root are retargeted to the host
+    },
+    true,
+  );
+
+  /** Press + NOTE: click = place mode (or highlight the selection) · drag = drop a note where you release. */
+  function dragToCreate(btn) {
+    btn.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault(); // keeps the page's text selection alive
+      var sx = e.clientX;
+      var sy = e.clientY;
+      var ghost = null;
+      btn.setPointerCapture(e.pointerId);
+      var move = function (m) {
+        if (curType() === "hl") return;
+        if (!ghost && Math.abs(m.clientX - sx) + Math.abs(m.clientY - sy) < 6) return;
+        if (!ghost) {
+          ghost = el("div", "gxn-note ghost");
+          ghost.style.background = PN.COLORS[(page ? page.notes.length : 0) % PN.COLORS.length];
+          ghost.style.setProperty("--r", "-3deg");
+          ghost.appendChild(el("div", "gxn-text", ""));
+          ghost.firstChild.dataset.ph = "Drop me anywhere…";
+          fixed.appendChild(ghost);
+        }
+        ghost.style.left = m.clientX - 20 + "px";
+        ghost.style.top = m.clientY - 20 + "px";
+        var stick = m.shiftKey || curType() === "el";
+        guides(m.clientX, m.clientY, stick);
+        var t = stick ? under(m.clientX, m.clientY) : null;
+        if (t) outline(t);
+        else hl.style.display = "none";
+      };
+      var up = function (u) {
+        btn.removeEventListener("pointermove", move);
+        btn.removeEventListener("pointerup", up);
+        btn.removeEventListener("pointercancel", up);
+        if (!ghost) return placing ? stopPlacing() : startPlacing();
+        ghost.remove();
+        stopPlacing();
+        if (u.type === "pointercancel") return;
+        var stick = u.shiftKey || curType() === "el";
+        var t = stick ? under(u.clientX, u.clientY) : null;
+        if (curType() === "el" && !t) return say("Drop it on a button, image or block");
+        create({ cx: u.clientX, cy: u.clientY, target: t });
+      };
+      btn.addEventListener("pointermove", move);
+      btn.addEventListener("pointerup", up);
+      btn.addEventListener("pointercancel", up);
+    });
+  }
+
+  function ordered() {
+    return (page ? page.notes.slice() : []).sort(function (a, b) {
+      var pa = place(a);
+      var pb = place(b);
+      return pa.y - pb.y || pa.x - pb.x;
+    });
+  }
+  function step(d) {
+    var list = ordered();
+    if (!list.length) return;
+    navIdx = (navIdx + d + list.length) % list.length;
+    focusNote(list[navIdx].id);
+  }
+  function updateDock() {
+    var n = page ? page.notes.length : 0;
+    var dm = settings.dock || "auto"; // off | auto | mini
+    var closed = dockClosed || settings.dockHidden === true;
+    var show = dm !== "off" && visible && (placing || (!closed && (dm === "mini" || n > 0 || dockWanted)));
+    dock.root.style.display = show ? "flex" : "none";
+    var folded = dm === "mini" ? !dockExpanded : !!settings.dockFolded;
+    dock.root.classList.toggle("collapsed", folded && !placing);
+    placeDock();
+    dock.cnt.textContent = String(n);
+    dock.cnt.classList.toggle("zero", !n);
+    var open = page
+      ? page.notes.filter(function (x) {
+          return !x.done;
+        }).length
+      : 0;
+    dock.root.firstChild.title = "Page Notes - " + n + " note" + (n === 1 ? "" : "s") + (n ? " (" + open + " open)" : "") + " - click to " + (settings.dockFolded ? "expand" : "minimize");
+    dock.root.classList.toggle("placing", placing);
+    dock.eye.style.display = n ? "" : "none"; // only useful once the page has notes
+    fixed.classList.toggle("notips", !tipsOn()); // tips off: tools + actions only, no guidance text
+    var ty = curType();
+    dock.add.textContent = "";
+    dock.add.append(svg(TYPES[ty][0]), TYPES[ty][1]); // label only - the shortcut is in the tooltip
+    dock.add.title = (ty === "el" ? "Click, then click an element" : ty === "hl" ? "Click, then select text" : "Click, then click the page - or drag me onto the page") + " (Alt+Shift+N)";
+    Object.keys(dock.typeItems).forEach(function (k) {
+      dock.typeItems[k].setAttribute("aria-checked", String(k === ty));
+    });
+    dock.stLabel.textContent = mode === "el" ? "Pick an element" : mode === "hl" ? "Select some text" : "Click to place";
+    dock.pos.textContent = "";
+    if (n) dock.pos.append(el("b", "", navIdx > -1 ? PN.pad(navIdx + 1) : "--"), "/" + PN.pad(n));
+    else dock.pos.textContent = "--";
+    dock.pos.title = open + " open - " + (n - open) + " done";
+    dock.prev.disabled = dock.next.disabled = n < 1;
+  }
+
+  // ---------- toast / visibility / focus / links ----------
+  var toastT = 0;
+  /** Message bar. Info messages follow "Show tips"; the Undo bar has its own setting. */
+  function say(text, action, fn) {
+    if (action ? settings.undo === false : !tipsOn()) return;
+    toast.textContent = "";
+    var ic = el("span", "t-ic");
+    ic.append(svg(action ? "trash" : /copied|stuck/i.test(text) ? "check" : "info"));
+    toast.append(ic, el("span", "t-tx", text));
+    var ms = action ? 6000 : 2200;
+    if (action) {
+      var b = el("button", "", action);
+      b.type = "button";
+      b.onclick = function () {
+        toast.style.display = "none";
+        fn();
+      };
+      toast.appendChild(b);
+    }
+    var bar = el("span", "t-bar");
+    bar.style.animationDuration = ms + "ms";
+    toast.appendChild(bar);
+    toast.style.display = "flex";
+    clearTimeout(toastT);
+    toastT = setTimeout(function () {
+      toast.style.display = "none";
+    }, ms);
+  }
+  function copy(text, msg) {
+    navigator.clipboard.writeText(text).then(
+      function () {
+        say(msg);
+      },
+      function () {
+        say("Couldn't copy — clipboard blocked on this site");
+      },
+    );
+  }
+  /** Notes show when "Show notes" is on and, in "only when I open Page Notes" mode, once revealed. */
+  /** This page's notes hidden (per page, remembered in the page record). The toolbar stays. */
+  var peek = false; // hidden page, but the user opened one of its notes: show for this visit only
+  function pageHidden() {
+    return !!(page && page.hide) && !peek;
+  }
+  function applyPageHide() {
+    layer.style.display = pageHidden() ? "none" : "";
+    applyHighlights();
+    if (dock && dock.eye) {
+      var off = pageHidden();
+      dock.eye.classList.toggle("off", off);
+      dock.eye.title = off ? "Show this page's notes (Alt+Shift+H)" : "Hide this page's notes (Alt+Shift+H)";
+      dock.eye.textContent = "";
+      dock.eye.append(svg(off ? "eye" : "eyeOn"));
+    }
+  }
+  function setPageHidden(v) {
+    if (!page) return;
+    peek = false;
+    page.hide = v ? true : undefined;
+    if (!v) delete page.hide;
+    applyPageHide();
+    flush();
+  }
+  function wantVisible() {
+    return settings.visible !== false && (settings.notesWhen !== "click" || revealed);
+  }
+  function setVisible(v, fromStorage) {
+    if (v && !fromStorage) revealed = true;
+    visible = v;
+    host.style.display = v ? "" : "none";
+    if (!fromStorage) setSettings({ visible: v });
+    if (v) scheduleReposition();
+    else stopPlacing();
+    applyHighlights();
+    updateDock();
+  }
+  function focusNote(id) {
+    if (!page) return;
+    var n = page.notes.find(function (x) {
+      return x.id === id;
+    });
+    if (!n) return;
+    if (!visible) setVisible(true);
+    if (page.hide && !peek) {
+      peek = true; // the stored "hidden" stays - leaving the page hides them again
+      applyPageHide();
+    }
+    dockWanted = true;
+    n.min = false;
+    sync(n);
+    if (nodes[n.id]) nodes[n.id].forced = true; // show it even if its element is hidden
+    reposition();
+    var p = place(n);
+    navIdx = ordered().indexOf(n);
+    updateDock();
+    window.scrollTo({ top: Math.max(0, p.y - innerHeight * 0.3), left: Math.max(0, p.x - innerWidth / 2), behavior: "smooth" });
+    var k = nodes[n.id];
+    if (k) {
+      k.root.classList.remove("pulse");
+      void k.root.offsetWidth;
+      k.root.classList.add("pulse");
+      setTimeout(function () {
+        k.root.classList.remove("pulse");
+      }, 2400);
+    }
+  }
+  function checkFocus() {
+    if (!alive()) return;
+    chrome.storage.local.get("focus", function (r) {
+      var f = r.focus;
+      if (!f || f.url !== url || Date.now() - f.at > 60000) return;
+      chrome.storage.local.remove("focus");
+      later(f.id);
+    });
+  }
+  function checkHash() {
+    var m = /gx-note=([\w-]+)/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(history.state, "", location.href.split("#")[0]);
+    later(m[1]);
+  }
+  function later(id) {
+    // give late layouts (fonts, images, SPA hydration) a moment
+    setTimeout(function () {
+      indexDirty = true;
+      resolveHighlights();
+      reposition();
+      focusNote(id);
+    }, 450);
+  }
+  addEventListener("hashchange", checkHash);
+
+  // ---------- messages ----------
+  chrome.runtime.onMessage.addListener(function (m, _s, reply) {
+    if (!m) return;
+    if (m.type === "place") startPlacing(m.mode); // no mode = the type picked in the dock
+    else if (m.type === "place-at-context") {
+      var sel = getSelection();
+      if (!(sel && !sel.isCollapsed && String(sel).trim().length > 1 && highlightSelection(sel))) {
+        var c = ctxPoint || { x: innerWidth / 2, y: innerHeight / 3, sx: scrollX, sy: scrollY, target: null };
+        dockWanted = true;
+        create({ cx: c.x + c.sx - scrollX, cy: c.y + c.sy - scrollY });
+      }
+    } else if (m.type === "toggle") {
+      // Alt+Shift+H: this page only
+      if (!visible) setVisible(true);
+      else if (page && page.notes.length) {
+        setPageHidden(!pageHidden());
+        say(pageHidden() ? "This page's notes hidden - Alt+Shift+H shows them" : "This page's notes shown");
+      }
+    } else if (m.type === "focus") {
+      revealed = true;
+      focusNote(m.id);
+    } else if (m.type === "reveal") {
+      // the popup was opened on this tab
+      if (!revealed && settings.visible !== false) {
+        revealed = true;
+        setVisible(true, true);
+      }
+    }
+    reply({ ok: true, url: url, count: page ? page.notes.length : 0, visible: visible });
+  });
+
+  // ---------- keep up with the page ----------
+  addEventListener("resize", function () {
+    scheduleReposition();
+  });
+  addEventListener("load", function () {
+    scheduleReposition(true);
+  });
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(function () {
+      scheduleReposition();
+    });
+  var mo = new MutationObserver(function (list) {
+    if (!alive()) return teardown();
+    if (!host.isConnected) document.documentElement.appendChild(host);
+    var content = list.some(function (r) {
+      return r.type === "childList" || r.type === "characterData";
+    });
+    scheduleReposition(content);
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "hidden", "open"] });
+  if (window.ResizeObserver && document.body)
+    new ResizeObserver(function () {
+      scheduleReposition();
+    }).observe(document.body);
+  addEventListener("pagehide", flush);
+
+  // SPA navigation + layout changes nothing told us about (CSS transitions, hover menus…)
+  var tick = setInterval(function () {
+    if (!alive()) return teardown();
+    var now = PN.normUrl(location.href);
+    if (now === url) {
+      if (visible && page && page.notes.length && !document.hidden) reposition();
+      return;
+    }
+    flush();
+    stopPlacing();
+    url = now;
+    key = PN.keyFor(location.href);
+    page = null;
+    navIdx = -1;
+    dockWanted = false;
+    peek = false;
+    renderAll();
+    load();
+  }, 800);
+
+  /** The extension was reloaded/updated: this copy is disconnected - remove it cleanly. */
+  function teardown() {
+    if (teardown.done) return;
+    teardown.done = true;
+    try {
+      mo.disconnect();
+    } catch (e) {}
+    clearInterval(tick);
+    host.remove();
+    var other = document.querySelector("gx-page-notes:not([data-gx-stale])"); // a newer copy owns the highlights now
+    if (!other && window.CSS && CSS.highlights)
+      PN.COLORS.forEach(function (c, i) {
+        CSS.highlights.delete("gxpn-" + i);
+      });
+    window.__gxPageNotes = false;
+  }
+
+  load();
+  setTimeout(count, 300);
+})();

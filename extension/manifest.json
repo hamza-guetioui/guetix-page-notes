@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Guetix Page Notes",
+  "short_name": "Page Notes",
+  "version": "1.3.1",
+  "description": "Sticky notes for any website. Pin anywhere, highlight text, drag freely — every note comes back when you return and lives in one visual list.",
+  "homepage_url": "https://guetix.com/components/page-notes-extension",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": {
+    "default_title": "Page Notes",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "unlimitedStorage", "contextMenus", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["shared.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "place-note": {
+      "suggested_key": { "default": "Alt+Shift+N" },
+      "description": "New note (or highlight the selected text)"
+    },
+    "place-element": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Stick a note to an element"
+    },
+    "place-highlight": {
+      "suggested_key": { "default": "Alt+Shift+L" },
+      "description": "Highlight text with a note"
+    },
+    "toggle-notes": {
+      "suggested_key": { "default": "Alt+Shift+H" },
+      "description": "Show / hide notes on pages"
+    }
+  },
+  "options_page": "notes.html"
+}
