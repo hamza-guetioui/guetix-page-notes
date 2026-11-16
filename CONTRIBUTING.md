@@ -8,6 +8,8 @@ Thanks for helping! Bug reports, translations and small focused pull requests ar
    with page or note text.
 4. Privacy is the product: no network requests, no analytics, data only in `chrome.storage.local`.
 5. New UI text in the popup / settings goes through `i18n.js` (English first; other languages welcome).
-6. Run `npm run build` before opening the PR to be sure the zip packs.
+6. Keep the comments up to date: each file starts with a short overview, and each function has a small JSDoc
+   block (one sentence + `@param` / `@returns` when useful).
+7. Run `npm run build` before opening the PR to be sure the zip packs.
 
 Please describe what you changed and how you tested it (browser + site).

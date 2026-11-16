@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Docs: every source file now starts with a short overview, and functions have JSDoc comments (no code changes).
+
 ## 1.3.1
 - Delete with Undo (no confirm for a single note) and a compact confirm dialog.
 - No duplicate notes after the extension is reloaded or updated.
