@@ -1,34 +1,64 @@
-/* Guetix Page Notes — toolbar popup: sites, counts, this page / recent notes + quick actions. */
+/* Guetix Page Notes — toolbar popup: sites, counts, this page / recent notes + quick actions.
+ *
+ * Main parts:
+ *  - Helpers: tab messaging, DOM builder, icons.
+ *  - Note cards and empty-state cards.
+ *  - Site dropdown (all sites or one site).
+ *  - render(): counts, tabs (page / site / recent), quick filters and the note list.
+ *  - Startup and UI event handlers.
+ *
+ * Globals: PN (from shared.js: storage keys, i18n via PN.t / PN.tn, formatting helpers),
+ * chrome.storage.local (all notes data, re-rendered on every change), chrome.tabs, chrome.runtime.
+ */
 (function () {
+  /** Shortcut for document.getElementById. */
   var $ = function (id) {
     return document.getElementById(id);
   };
   var manifest = chrome.runtime.getManifest();
   var HOW_URL = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
-  var tab = null;
-  var tabKey = "";
-  var tabHost = "";
+  var tab = null; // the active browser tab
+  var tabKey = ""; // storage key of the active tab's page
+  var tabHost = ""; // host of the active tab ("" when unsupported)
   // view: "page" | "recent" · domain: "" = all sites. Picked once from the data, then user-driven.
   var state = { view: null, domain: null, quick: "all" };
-  var lastStore = {};
-  var guideSet = false;
+  var lastStore = {}; // last full storage snapshot, used to re-render
+  var guideSet = false; // "How it works" guide set up once
   $("ver").textContent = "v" + manifest.version;
   $("ver").title = "Page Notes v" + manifest.version;
 
+  // ---------- Helpers ----------
+  /**
+   * Sends a message to the content script of the active tab (via the background worker).
+   * @param {Object} payload - message for the tab
+   * @returns {Promise<any>}
+   */
   function toTab(payload) {
     return chrome.runtime.sendMessage({ type: "send-to-tab", tabId: tab.id, payload: payload });
   }
+  /**
+   * Creates an element with an optional class and text.
+   * @param {string} tag - element tag name
+   * @param {string} [cls] - class name
+   * @param {string} [text] - text content
+   * @returns {HTMLElement}
+   */
   function h(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
   }
+  /**
+   * Opens a URL in a new tab and closes the popup.
+   * @param {string} url - address to open
+   */
   function openUrl(url) {
     chrome.tabs.create({ url: url });
     window.close();
   }
 
+  // small SVG paths used on note cards (12x12 viewBox)
   var CARD_IC = {
     hl: '<path d="M2 10h8M3.5 7.8l4-4.6 1.8 1.6-4 4.5H3.5z"/>',
     el: '<rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1" stroke-dasharray="1.6 1.3"/><circle cx="6" cy="6" r="1.3"/>',
@@ -36,11 +66,21 @@
     link: '<path d="M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4l1.2-1.2M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4"/>',
     check: '<path d="M2.5 6.3 5 8.6l4.5-5.1"/>',
   };
+  /**
+   * Builds a small card icon.
+   * @param {string} name - key in CARD_IC
+   * @returns {HTMLElement}
+   */
   function ic(name) {
     var sp = h("span", "ci");
     sp.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true">' + CARD_IC[name] + "</svg>"; // static markup only
     return sp;
   }
+  /**
+   * Flips a note between open and done, saved in storage.
+   * @param {string} key - storage key of the page
+   * @param {string} id - note id
+   */
   function toggleDone(key, id) {
     chrome.storage.local.get(key, function (r) {
       var page = r[key];
@@ -56,7 +96,15 @@
       chrome.storage.local.set(o); // storage.onChanged → re-render
     });
   }
+  // ---------- Note cards ----------
   // note card: [type / site · time] → text (2 lines) → highlighted quote → [done · links] + hover action
+  /**
+   * Builds one note card; clicking it focuses the note (this tab) or opens its page.
+   * @param {Object} n - the note
+   * @param {string} label - accessible label, e.g. "Note 01"
+   * @param {Object|null} page - the note's page, or null for the active tab
+   * @returns {HTMLElement}
+   */
   function card(n, label, page) {
     var here = !page || PN.keyFor(page.url) === tabKey;
     var kind = n.hl ? "hl" : n.anchor ? "el" : "pin";
@@ -125,17 +173,35 @@
     return b;
   }
 
+  /**
+   * Counts done notes.
+   * @param {Array<Object>} notes - notes list
+   * @returns {number}
+   */
   function doneCount(notes) {
     return notes.filter(function (n) {
       return n.done;
     }).length;
   }
   // big number; -1 = not applicable ("--"), 0 is dimmed
+  /**
+   * Shows a big summary number.
+   * @param {string} id - element id
+   * @param {number} v - value (-1 = not applicable)
+   */
   function num(id, v) {
     $(id).textContent = v < 0 ? "--" : PN.pad(v);
     $(id).classList.toggle("zero", v <= 0);
   }
   // "2 open · 1 done" under the number
+  /**
+   * Writes the open / done line under a summary number.
+   * @param {string} subId - id of the text element
+   * @param {string} barId - id of the progress bar (currently unused)
+   * @param {number} count - total notes
+   * @param {number} done - done notes
+   * @param {string} emptyText - text shown when count is 0
+   */
   function progress(subId, barId, count, done, emptyText) {
     var sub = $(subId);
     sub.textContent = "";
@@ -146,6 +212,8 @@
     if (done) sub.append(h("b", "g", PN.t("nDone", { n: done })));
   }
 
+  // ---------- Empty states ----------
+  // larger SVG paths for empty-state cards (20x20 viewBox)
   var ICONS = {
     note: '<path d="M4 3h12v9l-4 4H4z"/><path d="M12 16v-4h4"/><path d="M7 7h6M7 10h3"/>',
     lock: '<rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/><path d="M10 12.5v1.5"/>',
@@ -153,6 +221,11 @@
     spark: '<path d="M4 5h9v8l-3 3H4z"/><path d="M10 16v-3h3"/><path d="M16 2.5v3M14.5 4h3M17 9v2M16 10h2"/>',
   };
   // friendly empty / status card: icon · title · message · optional key hints · actions
+  /**
+   * Builds an empty / status card.
+   * @param {Object} o - { icon, tone, title, text, shortcuts?, keys?, actions? }
+   * @returns {HTMLElement}
+   */
   function emptyState(o) {
     var box = h("div", "state t-" + o.tone);
     var ic = h("span", "state-ic");
@@ -188,12 +261,20 @@
     }
     return box;
   }
+  /** Asks the active tab to place a new free note, then closes the popup. */
   function placeNote() {
     toTab({ type: "place", mode: "free" }).then(function () { // the popup's button is always a plain note
       window.close();
     });
   }
 
+  // ---------- Site dropdown ----------
+  /**
+   * Returns the site's favicon, or a letter badge when there is none or it fails to load.
+   * @param {string} name - site host
+   * @param {string} [favicon] - favicon URL
+   * @returns {HTMLElement}
+   */
   function siteIcon(name, favicon) {
     if (!favicon) return h("span", "gl", name ? name.charAt(0).toUpperCase() : "∗");
     var img = h("img");
@@ -205,6 +286,11 @@
     return img;
   }
   // site dropdown: button shows the selected site; menu lists All sites + every site with its count
+  /**
+   * Fills the site dropdown button and its option list.
+   * @param {Array<Object>} sites - { host, count, favicon } per site
+   * @param {number} total - notes across all sites
+   */
   function siteMenu(sites, total) {
     var cur = state.domain ? sites.filter(function (s) { return s.host === state.domain; })[0] : null;
     var btn = $("siteBtn");
@@ -235,11 +321,17 @@
       if (!i && sites.length) list.append(h("li", "sep"));
     });
   }
+  /** Hides the site dropdown. */
   function closeSites() {
     $("siteMenu").hidden = true;
     $("siteBtn").setAttribute("aria-expanded", "false");
   }
 
+  // ---------- Render ----------
+  /**
+   * Redraws the whole popup from a storage snapshot.
+   * @param {Object} store - all of chrome.storage.local
+   */
   function render(store) {
     lastStore = store;
     var pages = PN.allPages(store);
@@ -297,6 +389,11 @@
     }
 
     // three linked lists: page (this page) · site (this / picked domain) · recent (every site)
+    /**
+     * Notes of all pages (or one host), newest first.
+     * @param {string} filterHost - host to keep, "" for all
+     * @returns {Array<Object>} { n, i, page } entries
+     */
     function entries(filterHost) {
       var out = [];
       pages.forEach(function (p) {
@@ -332,6 +429,7 @@
 
     // quick filters (applied to the current list)
     var base = lists[state.view];
+    // filter tests by quick-filter name
     var Q = {
       all: function () { return true; },
       open: function (e) { return !e.n.done; },
@@ -370,6 +468,7 @@
     }
   }
 
+  // ---------- Startup ----------
   // translate first (browser language or settings.lang), then load tab + data
   PN.initLang(function () {
     PN.langMenu($("langBtn"), $("langMenu"), $("langCode"));
@@ -378,6 +477,10 @@
       chrome.storage.local.get(null, render);
     });
   });
+  /**
+   * Reads the active tab, fills the header, then renders the data.
+   * @param {Array<Object>} tabs - result of chrome.tabs.query
+   */
   function start(tabs) {
     tab = tabs[0] || null;
     if (tab) {
@@ -392,10 +495,19 @@
     chrome.storage.local.get(null, render);
   }
 
+  // ---------- Event handlers ----------
+  /**
+   * Opens the full "All my notes" page.
+   * @param {Event} [e] - click event
+   */
   function openAll(e) {
     if (e) e.preventDefault();
     openUrl(chrome.runtime.getURL("notes.html"));
   }
+  /**
+   * Marks the tour as seen and opens the "How it works" page.
+   * @param {Event} e - click event
+   */
   function openHow(e) {
     e.preventDefault();
     var ui = lastStore.ui || {};
@@ -404,6 +516,7 @@
       openUrl(HOW_URL);
     });
   }
+  // toggle the site dropdown
   $("siteBtn").onclick = function (e) {
     e.stopPropagation();
     var m = $("siteMenu");
@@ -413,9 +526,11 @@
     var sel = m.querySelector("[aria-selected=true]");
     if (sel) sel.focus();
   };
+  // click outside closes the site dropdown
   document.addEventListener("click", function (e) {
     if (!$("siteMenu").hidden && !$("siteMenu").contains(e.target)) closeSites();
   });
+  // keyboard in the site dropdown: Escape closes, arrows move focus
   $("siteMenu").addEventListener("keydown", function (e) {
     var items = Array.from(this.querySelectorAll("button"));
     var i = items.indexOf(document.activeElement);
@@ -430,6 +545,10 @@
   $("add").onclick = placeNote;
   // Everywhere tile → the full All-notes dashboard (the Recent tab handles the in-popup list)
   $("all").onclick = openAll;
+  /**
+   * Switches the list view and resets the quick filter.
+   * @param {string} v - "page" | "site" | "recent"
+   */
   function setView(v) {
     state.view = v;
     state.quick = "all";
@@ -450,6 +569,7 @@
   $("t-recent").onclick = function () {
     setView("recent");
   };
+  // quick filter buttons (delegated)
   $("quick").onclick = function (e) {
     var b = e.target.closest("button[data-q]");
     if (!b) return;
@@ -462,6 +582,7 @@
   $("settings").onclick = function () {
     openUrl(chrome.runtime.getURL("notes.html#settings"));
   };
+  // "Show this page's notes" toggle: saves page.hide for the active tab
   $("show").onchange = function (e) {
     chrome.storage.local.get(tabKey, function (r) {
       var pg = r[tabKey];

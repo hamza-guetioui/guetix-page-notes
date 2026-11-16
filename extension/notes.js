@@ -1,14 +1,28 @@
-/* Guetix Page Notes — "All my notes": every note from every page, as visual cards. */
+/* Guetix Page Notes — "All my notes": every note from every page, as visual cards.
+ *
+ * Main parts:
+ *  - Routing between All notes and Settings (#settings).
+ *  - Helpers (DOM builder, toast, storage save, filters).
+ *  - Note cards, the sticky-note editor, render() of the grid.
+ *  - Controls: tabs, color / site / sort / search filters, footer, settings nav.
+ *  - Select mode: share, download as Markdown, bulk actions, delete confirm.
+ *
+ * Globals: PN (from shared.js: storage prefixes, colors, formatting helpers),
+ * chrome.storage.local (all notes and snapshots; re-rendered on every change), chrome.tabs.
+ */
 (function () {
+  /** Shortcut for document.getElementById. */
   var $ = function (id) {
     return document.getElementById(id);
   };
-  var store = {};
+  var store = {}; // full chrome.storage.local snapshot
+  // current filters: tab, color, site host, sort ("new" | "old" | "site"), search text
   var state = { tab: "all", color: null, site: "", sort: "new", q: "" };
-  var editing = null;
-  var selecting = false;
+  var editing = null; // id of the note open in the editor (blocks re-render)
+  var selecting = false; // select mode on/off
   var picked = {}; // note id -> true
-  var lastList = [];
+  var lastList = []; // entries shown in the last render
+  // filter tabs: [id, label, dot color class]
   var TABS = [
     ["all", "All", ""],
     ["open", "Open", "o"],
@@ -19,6 +33,7 @@
   ];
 
   // ---------- All notes | Settings (same page, #settings) ----------
+  /** Shows the notes or settings view based on the URL hash. */
   function route() {
     var st = location.hash === "#settings";
     document.body.setAttribute("data-view", st ? "settings" : "notes");
@@ -37,6 +52,14 @@
   route();
   $("verTop").textContent = "v" + chrome.runtime.getManifest().version;
 
+  // ---------- helpers ----------
+  /**
+   * Creates an element with an optional class and text.
+   * @param {string} tag - element tag name
+   * @param {string} [cls] - class name
+   * @param {string} [text] - text content
+   * @returns {HTMLElement}
+   */
   function h(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -44,6 +67,10 @@
     return n;
   }
   var toastT = 0;
+  /**
+   * Shows a short toast message.
+   * @param {string} t - message text
+   */
   function say(t) {
     var el = $("toast");
     el.textContent = t;
@@ -53,9 +80,19 @@
       el.classList.remove("on");
     }, 1800);
   }
+  /**
+   * Note type name.
+   * @param {Object} n - the note
+   * @returns {string} "Highlight" | "Element" | "Free"
+   */
   function kind(n) {
     return n.hl ? "Highlight" : n.anchor ? "Element" : "Free";
   }
+  /**
+   * Short display form of a URL: host + path + query.
+   * @param {string} url - page URL
+   * @returns {string}
+   */
   function path(url) {
     try {
       var u = new URL(url);
@@ -65,7 +102,10 @@
     }
   }
 
-  /** Flat list of {page, note, i}. */
+  /**
+   * Flat list of {page, note, i}.
+   * @returns {Array<Object>}
+   */
   function entries() {
     var out = [];
     PN.allPages(store).forEach(function (p) {
@@ -76,6 +116,11 @@
     return out;
   }
 
+  /**
+   * Opens a page in a new tab; with a note, stores a focus request so the page scrolls to it.
+   * @param {Object} page - the page
+   * @param {Object} [note] - note to focus
+   */
   function open(page, note) {
     var go = function () {
       chrome.tabs.create({ url: page.url });
@@ -83,6 +128,10 @@
     if (note) chrome.storage.local.set({ focus: { url: page.url, id: note.id, at: Date.now() } }, go);
     else go();
   }
+  /**
+   * Saves a page to storage, or removes it when it has no notes left.
+   * @param {Object} page - the page with its notes
+   */
   function savePage(page) {
     var k = PN.PREFIX + page.url;
     if (page.notes.length) {
@@ -92,12 +141,23 @@
       chrome.storage.local.set(o);
     } else chrome.storage.local.remove(k);
   }
+  /**
+   * Copies text to the clipboard and shows a toast.
+   * @param {string} text - text to copy
+   * @param {string} msg - toast message
+   */
   function copy(text, msg) {
     navigator.clipboard.writeText(text).then(function () {
       say(msg);
     });
   }
 
+  /**
+   * Checks an entry against the current filters and search text.
+   * @param {Object} e - { page, note, i } entry
+   * @param {string} q - lowercase search text
+   * @returns {boolean}
+   */
   function matches(e, q) {
     var n = e.note;
     if (state.color && n.color !== state.color) return false;
@@ -112,6 +172,12 @@
   }
 
   // ---------- card ----------
+  /**
+   * Builds one note card: snapshot, status switch, text, page row and actions.
+   * @param {Object} e - { page, note, i } entry
+   * @param {Object} shots - storage snapshot holding the note screenshots (PN.SHOT + id)
+   * @returns {HTMLElement}
+   */
   function card(e, shots) {
     var p = e.page;
     var n = e.note;
@@ -241,6 +307,14 @@
       "a-edit": '<path d="M10.5 3 13 5.5 6 12.5H3.5V10z"/>',
       "a-del": '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
     };
+    /**
+     * Adds an action button to the card.
+     * @param {string} label - button text
+     * @param {Function} fn - click handler
+     * @param {boolean|null} pressed - aria-pressed value, or null
+     * @param {string} cls - class, also the AI icon key
+     * @returns {HTMLElement}
+     */
     var act = function (label, fn, pressed, cls) {
       var b = h("button", cls || "");
       b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + (AI[cls] || "") + "</svg>"); // static markup only
@@ -285,7 +359,12 @@
   }
 
   // ---------- editor: the note as a sticky note, like on the page ----------
-  var ed = null;
+  var ed = null; // editor draft: { p, n, color, done, urgent }
+  /**
+   * Opens the editor for a note.
+   * @param {Object} p - the page
+   * @param {Object} n - the note
+   */
   function openEditor(p, n) {
     ed = { p: p, n: n, color: n.color, done: !!n.done, urgent: n.pri === "urgent" };
     var dots = $("edDots");
@@ -311,6 +390,7 @@
     t.focus();
     t.setSelectionRange(t.value.length, t.value.length);
   }
+  /** Updates the editor colors and toggle buttons from the draft. */
   function paintEditor() {
     $("edNote").style.background = ed.color;
     Array.prototype.forEach.call($("edDots").children, function (b, i) {
@@ -319,6 +399,10 @@
     $("edUrg").setAttribute("aria-pressed", String(ed.urgent));
     $("edDone").setAttribute("aria-pressed", String(ed.done));
   }
+  /**
+   * Closes the editor, saving the draft if asked and something changed.
+   * @param {boolean} save - true to save
+   */
   function closeEditor(save) {
     if (!ed) return;
     var n = ed.n;
@@ -362,6 +446,7 @@
   };
 
   // ---------- render ----------
+  /** Redraws the site filter, tab counts and the notes grid. */
   function render() {
     if (editing) return; // don't yank the text box while typing
     var all = entries();
@@ -433,7 +518,7 @@
   }
 
   // ---------- controls ----------
-  var tabBtns = {};
+  var tabBtns = {}; // tab id -> button
   TABS.forEach(function (t) {
     var b = h("button", "tab");
     if (t[2]) b.appendChild(h("span", "dot " + t[2]));
@@ -507,6 +592,7 @@
     var sec = $(b.getAttribute("data-to")).closest("section");
     sec.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  // highlight the settings group currently in view
   if (window.IntersectionObserver) {
     var io = new IntersectionObserver(
       function (ents) {
@@ -532,6 +618,7 @@
     state.q = e.target.value;
     render();
   };
+  // "/" focuses the search box
   document.addEventListener("keydown", function (e) {
     if (e.key === "/" && document.activeElement === document.body) {
       e.preventDefault();
@@ -540,11 +627,16 @@
   });
 
   // ---------- select + share ----------
+  /**
+   * Selected entries among the shown ones.
+   * @returns {Array<Object>}
+   */
   function selected() {
     return lastList.filter(function (e) {
       return picked[e.note.id];
     });
   }
+  /** Updates the selected count and enables / disables the selection actions. */
   function updateShare() {
     var n = selected().length;
     $("selN").textContent = String(n);
@@ -552,6 +644,10 @@
       $(id).disabled = !n;
     });
   }
+  /**
+   * Turns select mode on or off (off clears the selection).
+   * @param {boolean} v - on
+   */
   function setSelecting(v) {
     selecting = v;
     if (!v) picked = {};
@@ -561,7 +657,10 @@
     render();
     updateShare();
   }
-  /** Selected notes as readable Markdown, grouped by page. */
+  /**
+   * Selected notes as readable Markdown, grouped by page.
+   * @returns {string}
+   */
   function asText() {
     var byPage = {};
     var order = [];
@@ -585,9 +684,14 @@
     });
     return out.join("\n");
   }
+  /**
+   * Export file name with today's date.
+   * @returns {string}
+   */
   function fileName() {
     return "page-notes-" + new Date().toISOString().slice(0, 10) + ".md";
   }
+  /** Downloads the selected notes as a .md file. */
   function download() {
     var a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([asText()], { type: "text/markdown" }));
@@ -598,12 +702,21 @@
     }, 2000);
     say("Downloaded " + selected().length + " notes");
   }
+  /** Opens the share sheet with app links for the selected notes. */
   function openSheet() {
     var text = asText();
     var short = text.length > 1800 ? text.slice(0, 1800) + "\n…" : text;
     var enc = encodeURIComponent(short);
     var apps = $("apps");
     apps.textContent = "";
+    /**
+     * Adds one share target (link or button) to the sheet.
+     * @param {string} name - app name
+     * @param {string} color - badge color
+     * @param {string} mark - badge letter
+     * @param {string|null} href - share URL, or null for a button
+     * @param {Function} [fn] - click handler
+     */
     var app = function (name, color, mark, href, fn) {
       var a = h(href ? "a" : "button");
       if (href) {
@@ -629,6 +742,7 @@
     $("shSub").textContent = selected().length + " notes - sent as text. Download the .md file to attach it anywhere.";
     $("sheet").classList.add("on");
   }
+  /** Closes the share sheet. */
   function closeSheet() {
     $("sheet").classList.remove("on");
   }
@@ -646,6 +760,11 @@
     updateShare();
   };
   // ---------- bulk actions on the selection ----------
+  /**
+   * Runs a change on every selected note, then saves each touched page once.
+   * @param {Function} fn - called with each entry
+   * @param {string} [msg] - toast message
+   */
   function bulk(fn, msg) {
     var touched = {};
     selected().forEach(function (e) {
@@ -682,7 +801,12 @@
     }, all ? "No longer urgent" : "Marked as urgent");
   };
   /** Every delete asks first. */
-  var onConfirm = null;
+  var onConfirm = null; // action to run when the delete is confirmed
+  /**
+   * Opens the delete confirm dialog.
+   * @param {number} n - how many notes
+   * @param {Function} fn - runs on confirm
+   */
   function askDelete(n, fn) {
     onConfirm = fn;
     $("cfTitle").textContent = n === 1 ? "Delete this note?" : "Delete " + n + " notes?";
@@ -705,6 +829,7 @@
     onConfirm = null;
     if (fn) fn();
   };
+  /** Deletes the selected notes and their snapshots. */
   function deleteSelected() {
     var sel = selected();
     var n = sel.length;
@@ -735,6 +860,7 @@
     e.stopPropagation();
     $("shMenu").classList.toggle("on");
   };
+  // click outside closes the share menu
   document.addEventListener("click", function (e) {
     if (!e.target.closest(".shwrap")) $("shMenu").classList.remove("on");
   });
@@ -755,6 +881,7 @@
   $("sheet").onclick = function (e) {
     if (e.target === $("sheet")) closeSheet();
   };
+  // Escape closes the top layer: editor, confirm, sheet, then select mode
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
       if ($("editor").classList.contains("on")) closeEditor(false);
@@ -764,6 +891,8 @@
     }
   });
 
+  // ---------- data ----------
+  /** Reloads all storage and re-renders. */
   function refresh() {
     chrome.storage.local.get(null, function (s) {
       store = s;
