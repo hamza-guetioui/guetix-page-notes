@@ -1,5 +1,15 @@
-/* Guetix Page Notes — settings page: page behavior, shortcuts, data (export / import / delete), about. */
+/* Guetix Page Notes — settings page: page behavior, shortcuts, data (export / import / delete), about.
+ *
+ * Overview:
+ * - Needs shared.js (PN helpers) and i18n.js (PN.t, PN.initLang, PN.langPicker) loaded first.
+ * - Settings live in chrome.storage.local under the "settings" key (toggles + option cards).
+ * - render() fills the page from storage and re-runs on every storage change.
+ * - Shortcuts are listed from chrome.commands; editing opens chrome://extensions/shortcuts.
+ * - Data: export all page records (p:<url>) to JSON, import (validated by PN.cleanPage, merged by note id),
+ *   delete snapshots (s:<id>) or everything.
+ */
 (function () {
+  /** Shortcut for document.getElementById. */
   var $ = function (id) {
     return document.getElementById(id);
   };
@@ -15,6 +25,10 @@
   $("how").href = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
 
   var toastT;
+  /**
+   * Show a short toast message for about 2 seconds.
+   * @param {string} msg - text to show
+   */
   function say(msg) {
     var t = $("toast");
     t.textContent = msg;
@@ -24,16 +38,32 @@
       t.classList.remove("on");
     }, 2200);
   }
+  /**
+   * Create an element with an optional class and text.
+   * @param {string} tag - tag name
+   * @param {string} cls - class name (optional)
+   * @param {string} text - text content (optional)
+   * @returns {HTMLElement}
+   */
   function h(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
   }
+  /**
+   * Format a byte count as B / KB / MB.
+   * @param {number} b - bytes
+   * @returns {string}
+   */
   function size(b) {
     return b < 1024 ? b + " B" : b < 1048576 ? Math.round(b / 1024) + " KB" : (b / 1048576).toFixed(1) + " MB";
   }
 
+  /**
+   * Fill the page from storage: toggles, option cards, and note/page/site/storage stats.
+   * @param {Object} s - full chrome.storage.local content
+   */
   function render(s) {
     store = s;
     var settings = s.settings || {};
@@ -67,6 +97,7 @@
       $("sBytes").textContent = size(b || 0);
     });
   }
+  /** Read all storage and render it. */
   function load() {
     chrome.storage.local.get(null, render);
   }
@@ -78,6 +109,12 @@
     chrome.commands.getAll(renderKeys);
   });
 
+  /**
+   * Save one setting (or remove it when v is undefined), then show a toast.
+   * @param {string} k - setting name
+   * @param {*} v - new value, or undefined to reset to default
+   * @param {string} msg - toast text (optional, defaults to "saved")
+   */
   function saveSetting(k, v, msg) {
     chrome.storage.local.get("settings", function (r) {
       var s = r.settings || {};
@@ -110,6 +147,10 @@
   });
 
   // shortcuts
+  /**
+   * List the keyboard shortcuts with their current keys.
+   * @param {Array<Object>} cmds - commands from chrome.commands.getAll
+   */
   function renderKeys(cmds) {
     var box = $("keys");
     cmds.forEach(function (c) {
@@ -125,6 +166,7 @@
   };
 
   // data
+  /** Download all saved pages as a JSON file. */
   $("export").onclick = function () {
     var pages = PN.allPages(store);
     var data = { app: "guetix-page-notes", version: 2, exportedAt: new Date().toISOString(), pages: pages };
@@ -140,6 +182,10 @@
   $("import").onclick = function () {
     $("file").click();
   };
+  /**
+   * Import a JSON file: validate each page and merge new notes (by id) into existing pages.
+   * @param {Event} e - file input change event
+   */
   $("file").onchange = function (e) {
     var f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -173,16 +219,23 @@
       });
     });
   };
+  /**
+   * Storage keys that start with a prefix.
+   * @param {string} prefix - e.g. PN.PREFIX or PN.SHOT
+   * @returns {Array<string>}
+   */
   function keysWith(prefix) {
     return Object.keys(store).filter(function (k) {
       return k.indexOf(prefix) === 0;
     });
   }
+  /** Delete all note snapshots after confirmation. */
   $("wipeShots").onclick = function () {
     var keys = keysWith(PN.SHOT);
     if (!keys.length) return say(PN.t("noShots"));
     if (confirm(PN.t("confShots", { n: keys.length }))) chrome.storage.local.remove(keys, function () { say(PN.t("shotsCleared")); });
   };
+  /** Delete all notes and snapshots after confirmation. */
   $("wipe").onclick = function () {
     var keys = keysWith(PN.PREFIX).concat(keysWith(PN.SHOT));
     if (!keys.length) return say(PN.t("nothing"));

@@ -1,4 +1,22 @@
-/* Guetix Page Notes — helpers shared by the content script, popup, dashboard and worker. */
+/* Guetix Page Notes — helpers shared by the content script, popup, dashboard and worker.
+ *
+ * Defines one global `PN` namespace (no modules: loaded by <script>, importScripts and executeScript).
+ *
+ * Storage keys (chrome.storage.local):
+ * - p:<normalized url> → page record { url, title, favicon, notes: Array<note>, updatedAt, hide? }
+ * - s:<note id>        → JPEG data URL snapshot of that note (kept apart from the page record)
+ *
+ * Public API:
+ * - PREFIX, SHOT, COLORS  key prefixes and note color palette
+ * - normUrl, keyFor       stable page URL and its storage key
+ * - noteLink, uid         deep link to one note, new note id
+ * - supported             can notes run on this URL?
+ * - allPages              all saved page records, newest first
+ * - when, host, pad       display helpers (relative time, hostname, 2-digit pad)
+ * - links, rich           URLs in a note; safe rich text fragment
+ * - cleanPage             validate imported page data
+ * PN.lang may be set by i18n.js to localize `when`.
+ */
 /* eslint-disable no-var */
 var PN = (function () {
   var PREFIX = "p:"; // page record:  p:<normalized url>
@@ -8,7 +26,11 @@ var PN = (function () {
   var TRACKING = /^(utm_|fbclid$|gclid$|msclkid$|mc_cid$|mc_eid$|_ga$|ref_src$)/i;
   var URL_RE = /\bhttps?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/gi;
 
-  /** One stable key per page: origin + path + meaningful query (no #hash, no tracking params). */
+  /**
+   * One stable key per page: origin + path + meaningful query (no #hash, no tracking params).
+   * @param {string} href - any page URL
+   * @returns {string} normalized URL (the input as-is if it is not a valid URL)
+   */
   function normUrl(href) {
     try {
       var u = new URL(href);
@@ -23,23 +45,52 @@ var PN = (function () {
       return String(href);
     }
   }
+  /**
+   * Storage key of a page record.
+   * @param {string} href - page URL
+   * @returns {string} "p:" + normalized URL
+   */
   function keyFor(href) {
     return PREFIX + normUrl(href);
   }
+  /**
+   * Link that opens a page and focuses one note.
+   * @param {string} pageUrl - page URL
+   * @param {string} id - note id
+   * @returns {string} URL with #gx-note=<id>
+   */
   function noteLink(pageUrl, id) {
     return pageUrl + "#gx-note=" + id;
   }
+  /**
+   * New short unique id for a note.
+   * @returns {string} id
+   */
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
+  /**
+   * Can notes be used on this URL? Only http(s), and not on extension stores.
+   * @param {string} href - page URL
+   * @returns {boolean}
+   */
   function supported(href) {
     return /^https?:\/\//i.test(href || "") && !/^https:\/\/(chrome\.google\.com\/webstore|chromewebstore\.google\.com|microsoftedge\.microsoft\.com\/addons)/i.test(href);
   }
+  /**
+   * Pad a number to two digits.
+   * @param {number} n - number
+   * @returns {string} e.g. "07"
+   */
   function pad(n) {
     return (n < 10 ? "0" : "") + n;
   }
 
-  /** All saved pages, newest first. */
+  /**
+   * All saved pages, newest first.
+   * @param {Object} store - full chrome.storage.local content
+   * @returns {Array<Object>} page records that have at least one note
+   */
   function allPages(store) {
     return Object.keys(store)
       .filter(function (k) {
@@ -53,6 +104,11 @@ var PN = (function () {
       });
   }
 
+  /**
+   * Short human time: relative for the last 7 days, else a date. Uses PN.lang when set.
+   * @param {number} ts - timestamp in ms
+   * @returns {string} e.g. "5m ago"
+   */
   function when(ts) {
     if (!ts) return "";
     var d = new Date(ts);
@@ -72,6 +128,11 @@ var PN = (function () {
     if (diff < 86400 * 7) return Math.floor(diff / 86400) + "d ago";
     return d.toLocaleDateString(L || undefined, { day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
   }
+  /**
+   * Hostname without "www.".
+   * @param {string} url - URL
+   * @returns {string} hostname (the input if it is not a valid URL)
+   */
   function host(url) {
     try {
       return new URL(url).hostname.replace(/^www\./, "");
@@ -80,7 +141,11 @@ var PN = (function () {
     }
   }
 
-  /** URLs written inside a note. */
+  /**
+   * URLs written inside a note.
+   * @param {string} text - note text
+   * @returns {Array<string>} unique URLs in order
+   */
   function links(text) {
     var out = [];
     String(text || "").replace(URL_RE, function (u) {
@@ -90,12 +155,18 @@ var PN = (function () {
     return out;
   }
 
-  /** Text → fragment with clickable links and the search term marked. Text nodes only, never innerHTML. */
+  /**
+   * Text → fragment with clickable links and the search term marked. Text nodes only, never innerHTML.
+   * @param {string} text - note text
+   * @param {string} q - lowercase search term to mark (optional)
+   * @returns {DocumentFragment}
+   */
   function rich(text, q) {
     var f = document.createDocumentFragment();
     var str = String(text || "");
     var i = 0;
     var m;
+    /** Append plain text, wrapping each match of q in <mark>. */
     var mark = function (s) {
       if (!q) return f.append(s);
       var lower = s.toLowerCase();
@@ -125,7 +196,11 @@ var PN = (function () {
     return f;
   }
 
-  /** Light validation for imported data — never trust a pasted file. */
+  /**
+   * Light validation for imported data — never trust a pasted file.
+   * @param {Object} p - page record from an import file
+   * @returns {Object|null} a clean page record, or null if invalid
+   */
   function cleanPage(p) {
     if (!p || typeof p.url !== "string" || !supported(p.url) || !Array.isArray(p.notes)) return null;
     var num = function (v) {

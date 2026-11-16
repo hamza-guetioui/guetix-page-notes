@@ -4,7 +4,20 @@
  * pin anywhere and drag anywhere) plus what only an extension can do: they come back on every
  * visit, can stick to an element (hold Shift) or to highlighted text, get a snapshot for the
  * list, and have deep links. Everything renders in a closed Shadow DOM and lives in
- * chrome.storage.local — nothing leaves the browser. */
+ * chrome.storage.local — nothing leaves the browser.
+ *
+ * Main parts (in file order):
+ *   - styles + mount: one <gx-page-notes> host with a closed shadow root (notes layer + fixed HUD)
+ *   - storage: one record per page (key from PN.keyFor, see shared.js) plus global "settings"
+ *   - anchoring: free (document px), element (CSS selector) or highlighted text (text + context)
+ *   - notes: build, drag, resize, create, snapshot, delete (with Undo)
+ *   - placing mode, dock (toolbar), toast, visibility, focus / deep links (#gx-note=<id>)
+ *   - messages from background.js and observers that keep notes in place as the page changes
+ *
+ * Talking to background.js: send() wraps chrome.runtime.sendMessage (types: "fonts", "count",
+ * "shot", "open-dashboard", "open-settings"); the worker sends "place", "place-at-context",
+ * "toggle", "focus" and "reveal" (see the messages section). Other pages (popup, list) talk to
+ * this script through chrome.storage changes (settings, page record, "focus"). */
 (function () {
   if (window.__gxPageNotes) return;
   window.__gxPageNotes = true;
@@ -279,20 +292,34 @@
   shadow.append(style, layer, fixed);
   document.documentElement.appendChild(host);
 
+  // ---------- small helpers ----------
+  /**
+   * Create an element with an optional class and text.
+   * @param {string} tag - tag name
+   * @param {string} [cls] - class name(s)
+   * @param {string} [text] - text content
+   * @returns {HTMLElement}
+   */
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
   }
+  /** Create a <kbd> key label. @param {string} t - key text @returns {HTMLElement} */
   function kbd(t) {
     return el("kbd", "", t);
   }
+  /** Wrap nodes/strings in a <span>. @param {Array} parts - children @returns {HTMLElement} */
   function spanWith(parts) {
     var s = el("span");
     s.append.apply(s, parts);
     return s;
   }
+  /**
+   * Whether the extension context still exists (false after a reload/update).
+   * @returns {boolean}
+   */
   function alive() {
     try {
       return !!chrome.runtime && !!chrome.runtime.id;
@@ -300,6 +327,11 @@
       return false;
     }
   }
+  /**
+   * Send a message to background.js; never throws.
+   * @param {Object} msg - message with a `type`
+   * @returns {Promise<Object|null>} the reply, or null on failure
+   */
   function send(msg) {
     if (!alive()) return Promise.resolve(null);
     try {
@@ -348,6 +380,7 @@
   }
 
   // ---------- storage ----------
+  /** Read this page's record and the settings from storage, then render everything. */
   function load() {
     if (!alive()) return;
     chrome.storage.local.get([key, "settings"], function (r) {
@@ -360,15 +393,18 @@
       checkHash();
     });
   }
+  /** Return this page's record, creating an empty one if needed. @returns {Object} */
   function ensurePage() {
     if (!page) page = { url: url, title: document.title, favicon: favicon(), notes: [], updatedAt: Date.now() };
     return page;
   }
   var saveT = 0;
+  /** Schedule a write of the page record (debounced). @param {boolean} [now] - write right away */
   function save(now) {
     clearTimeout(saveT);
     saveT = setTimeout(flush, now ? 0 : 350);
   }
+  /** Write the page record to storage now (removed when it has no notes). */
   function flush() {
     clearTimeout(saveT);
     if (!page || !alive()) return;
@@ -382,32 +418,44 @@
     } else chrome.storage.local.remove(key);
     count();
   }
+  /** Tell the worker the note count (toolbar badge) and refresh the dock. */
   function count() {
     send({ type: "count", n: page ? page.notes.length : 0 });
     updateDock();
   }
+  /** URL of the page's favicon. @returns {string} */
   function favicon() {
     var l = document.querySelector('link[rel~="icon"][href]');
     return l ? l.href : location.origin + "/favicon.ico";
   }
   var TYPES = { free: ["note", "Note"], el: ["el", "Element"], hl: ["hl", "Highlight"] };
+  /** Note kind picked in the dock: "free", "el" or "hl". @returns {string} */
   function curType() {
     return TYPES[settings.noteType] ? settings.noteType : "free";
   }
   var tipsShown = false;
+  /** Whether "Show tips" is on (default on). @returns {boolean} */
   function tipsOn() {
     return settings.tips !== false;
   }
+  /**
+   * Build an inline icon from the static SVG table.
+   * @param {string} name - key in SVG
+   * @param {number} [vb] - viewBox size (default 20)
+   * @returns {Element}
+   */
   function svg(name, vb) {
     var w = document.createElement("span");
     w.innerHTML = '<svg viewBox="0 0 ' + (vb || 20) + " " + (vb || 20) + '" aria-hidden="true">' + SVG[name] + "</svg>"; // static markup only
     return w.firstChild;
   }
+  /** Merge into the settings and save them. @param {Object} patch - changed keys */
   function setSettings(patch) {
     for (var k in patch) settings[k] = patch[k];
     if (alive()) chrome.storage.local.set({ settings: settings });
   }
 
+  // other tabs, the popup or the list changed storage: follow settings, page record and focus requests
   chrome.storage.onChanged.addListener(function (ch, area) {
     if (area !== "local") return;
     if (ch.settings) {
@@ -427,6 +475,12 @@
   });
 
   // ---------- anchoring: element (Shift) ----------
+  /**
+   * Page element under a viewport point (our own overlay is ignored).
+   * @param {number} cx - viewport x
+   * @param {number} cy - viewport y
+   * @returns {HTMLElement|null}
+   */
   function under(cx, cy) {
     var prev = host.style.display;
     host.style.display = "none";
@@ -439,6 +493,7 @@
     }
     return t && t !== document.body && t !== document.documentElement ? t : null;
   }
+  /** Whether the element has a stable id that is unique on the page. @param {HTMLElement} n @returns {boolean} */
   function uniqueId(n) {
     if (!n.id || /\d{4,}|^[:_]|[:]/.test(n.id)) return false; // skip framework-generated ids
     try {
@@ -447,6 +502,7 @@
       return false;
     }
   }
+  /** Build a CSS selector that finds this element again on the next visit. @param {HTMLElement} n @returns {string} */
   function selectorFor(n) {
     var parts = [];
     while (n && n.nodeType === 1 && n !== document.body && n !== document.documentElement) {
@@ -468,6 +524,7 @@
     parts.unshift("body");
     return parts.join(" > ");
   }
+  /** Short readable text of an element (aria-label, alt, title or its text). @param {HTMLElement} n @returns {string} */
   function snippet(n) {
     if (!n) return "";
     var t = n.getAttribute && (n.getAttribute("aria-label") || n.getAttribute("alt") || n.getAttribute("title"));
@@ -476,10 +533,18 @@
       .trim()
       .slice(0, 90);
   }
+  /**
+   * Anchor data for a note stuck to an element: selector + where on the element it was dropped.
+   * @param {HTMLElement} t - target element
+   * @param {number} cx - viewport x
+   * @param {number} cy - viewport y
+   * @returns {Object} {sel, fx, dy}
+   */
   function elementAnchor(t, cx, cy) {
     var r = t.getBoundingClientRect();
     return { sel: selectorFor(t), fx: r.width ? (cx - r.left) / r.width : 0, dy: cy - r.top };
   }
+  /** Short tag#id.class label shown while picking an element. @param {HTMLElement} t @returns {string} */
   function label(t) {
     return t.localName + (t.id ? "#" + t.id : "") + (t.classList.length ? "." + Array.prototype.slice.call(t.classList, 0, 2).join(".") : "");
   }
@@ -488,6 +553,7 @@
   var index = null;
   var indexDirty = true;
   var hlRanges = {};
+  /** Join all visible text nodes into one string with each node's start offset. @returns {Object} {nodes, starts, text} */
   function buildIndex() {
     var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
@@ -507,6 +573,7 @@
     }
     return { nodes: list, starts: starts, text: text };
   }
+  /** The text index, rebuilt only when the page content changed. @returns {Object} */
   function getIndex() {
     if (!index || indexDirty) {
       index = buildIndex();
@@ -514,6 +581,13 @@
     }
     return index;
   }
+  /**
+   * Convert a DOM position to an offset in the index text.
+   * @param {Object} idx - text index
+   * @param {Node} container - range container
+   * @param {number} off - offset in the container
+   * @returns {number} offset, or -1 if not found
+   */
   function offsetOf(idx, container, off) {
     if (container.nodeType === 3) {
       var i = idx.nodes.indexOf(container);
@@ -524,6 +598,7 @@
     for (var k = 0; k < idx.nodes.length; k++) if (r.comparePoint(idx.nodes[k], 0) >= 0) return idx.starts[k];
     return idx.text.length;
   }
+  /** Convert an index offset back to {node, off} (binary search). @param {Object} idx @param {number} o @returns {Object} */
   function pointAt(idx, o) {
     var lo = 0;
     var hi = idx.nodes.length - 1;
@@ -534,6 +609,7 @@
     }
     return { node: idx.nodes[lo], off: Math.min(o - idx.starts[lo], idx.nodes[lo].data.length) };
   }
+  /** DOM Range for index offsets s..e. @param {Object} idx @param {number} s @param {number} e @returns {Range} */
   function rangeFor(idx, s, e) {
     var a = pointAt(idx, s);
     var b = pointAt(idx, e);
@@ -543,6 +619,7 @@
     return r;
   }
   /** Selection → {text, prefix, suffix} measured on the page text itself. */
+  /** @param {Selection} sel @returns {Object|null} */
   function hlFromSelection(sel) {
     var r = sel.getRangeAt(0);
     var idx = getIndex();
@@ -552,6 +629,11 @@
     e = Math.min(e, s + 600);
     return { text: idx.text.slice(s, e), prefix: idx.text.slice(Math.max(0, s - 32), s), suffix: idx.text.slice(e, e + 32) };
   }
+  /**
+   * Find saved highlighted text on the page; the match with the best prefix/suffix wins.
+   * @param {Object} h - {text, prefix, suffix}
+   * @returns {Range|null}
+   */
   function findRange(h) {
     var idx = getIndex();
     var best = -1;
@@ -571,6 +653,7 @@
     }
     return best < 0 ? null : rangeFor(idx, best, best + h.text.length);
   }
+  /** Paint highlighted text with the CSS Custom Highlight API (one highlight per note color). */
   function applyHighlights() {
     if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") return;
     PN.COLORS.forEach(function (c, i) {
@@ -589,11 +672,17 @@
   }
 
   // ---------- where a note sits (top-left of the card, document px) ----------
+  /** Whether an element is rendered and visible. @param {HTMLElement} t @returns {boolean} */
   function shown(t) {
     if (!t.getClientRects().length) return false;
     if (t.checkVisibility) return t.checkVisibility({ opacityProperty: true, visibilityProperty: true });
     return true;
   }
+  /**
+   * Document point a note is attached to: end of its text, its element, or {free:true}.
+   * @param {Object} n - note
+   * @returns {Object|null} null when the anchor is not found or hidden
+   */
   function base(n) {
     if (n.hl) {
       var r = hlRanges[n.id];
@@ -618,6 +707,7 @@
     }
     return { x: 0, y: 0, free: true };
   }
+  /** Final card position of a note. @param {Object} n - note @returns {Object} {x, y, lost?} */
   function place(n) {
     var b = base(n);
     if (!b) return { x: n.x, y: n.y, lost: true };
@@ -627,6 +717,7 @@
   }
 
   // ---------- notes ----------
+  /** Rebuild every note card of this page from scratch. */
   function renderAll() {
     setTimeout(applyPageHide, 0);
     layer.textContent = "";
@@ -640,6 +731,7 @@
     reposition();
     updateDock();
   }
+  /** Find the text range of every highlight note again. */
   function resolveHighlights() {
     if (!page) return;
     page.notes.forEach(function (n) {
@@ -647,6 +739,11 @@
     });
   }
 
+  /**
+   * Create the DOM card of one note (bar, buttons, text, meta, resize handle) and wire its events.
+   * @param {Object} n - note
+   * @returns {HTMLElement} the card root
+   */
   function build(n) {
     var root = el("div", "gxn-note");
     root.setAttribute("role", "note");
@@ -791,6 +888,13 @@
     sync(n);
     return root;
   }
+  /**
+   * Small button for a note's bar.
+   * @param {string} t - button text/icon
+   * @param {string} label_ - tooltip and aria-label
+   * @param {Function} fn - click handler
+   * @returns {HTMLElement}
+   */
   function iconBtn(t, label_, fn) {
     var b = el("button", "gxn-x", t);
     b.type = "button";
@@ -799,12 +903,15 @@
     b.onclick = fn;
     return b;
   }
+  /** Mark a note as edited now. @param {Object} n */
   function touch(n) {
     n.updatedAt = Date.now();
   }
+  /** 1-based position of a note in this page's list. @param {Object} n @returns {number} */
   function ordinal(n) {
     return page ? page.notes.indexOf(n) + 1 : 0;
   }
+  /** Update a card's classes/attributes (folded, done...) from its note data. @param {Object} n */
   function sync(n) {
     var k = nodes[n.id];
     if (!k) return;
@@ -818,6 +925,7 @@
     k.root.setAttribute("aria-label", "Page note " + ordinal(n) + (n.done ? " (done)" : ""));
     meta(n);
   }
+  /** Fill the small info line of a card. @param {Object} n - note @param {boolean} lost - anchor not found */
   function meta(n, lost) {
     var k = nodes[n.id];
     if (!k) return;
@@ -835,9 +943,11 @@
     var pw = Math.max(document.documentElement.clientWidth, document.body ? document.body.scrollWidth : 0);
     return Math.max(4, Math.min(x, pw - w - 8));
   }
+  /** @param {number} y @returns {number} */
   function clampY(y) {
     return Math.max(4, y);
   }
+  /** Move every card to its current anchor position. */
   function reposition() {
     if (!page) return;
     page.notes.forEach(function (n) {
@@ -861,6 +971,7 @@
   }
   var rpT = 0;
   var lastIndexAt = 0;
+  /** Debounced reposition(). @param {boolean} [contentChanged] - also rebuild the text index */
   function scheduleReposition(contentChanged) {
     if (contentChanged) indexDirty = true;
     clearTimeout(rpT);
@@ -877,6 +988,7 @@
   }
 
   /** Drag by the bar (or the folded tab) anywhere. Hold Shift on drop to stick it to the element underneath. */
+  /** @param {HTMLElement} handle - drag handle @param {Object} n - note @param {Function} [onTap] - called on a click without drag */
   function draggable(handle, n, onTap) {
     handle.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -945,6 +1057,7 @@
   }
 
   /** Corner handle: resize between 160x110 and 460x480 (saved as n.w / n.h). */
+  /** @param {HTMLElement} handle @param {Object} n - note @param {HTMLElement} root - card */
   function resizable(handle, n, root) {
     handle.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -980,6 +1093,7 @@
   }
 
   /** opts: {cx, cy, target?, hl?, quote?} — viewport coords of the spot the user chose. */
+  /** Create, save and show a new note. @param {Object} opts @returns {Object} the new note */
   function create(opts) {
     if (!visible) setVisible(true);
     reopenDock(); // a new note brings the toolbar back
@@ -1010,6 +1124,7 @@
   }
 
   /** Snapshot centered on the note itself (visible in the picture). */
+  /** @param {Object} n - note @returns {Promise<void>} */
   function shootNote(n) {
     var k = nodes[n.id];
     if (!k || !visible) return Promise.resolve();
@@ -1019,6 +1134,7 @@
     return shoot(n.id, r.left + r.width / 2, r.top + r.height / 2);
   }
   /** Ask the worker for a cropped screenshot around the spot (shown in “All my notes”). */
+  /** @param {string} id - note id @param {number} cx - viewport x @param {number} cy - viewport y @returns {Promise<void>} */
   function shoot(id, cx, cy) {
     if (settings.snapshots === false) return Promise.resolve();
     // the HUD (dock, guides, outline) must not end up in the picture
@@ -1042,6 +1158,11 @@
     });
   }
 
+  /**
+   * Delete one note; its snapshot is removed a few seconds later unless undone.
+   * @param {Object} n - note
+   * @param {boolean} undoable - offer an Undo bar (only if the note had content)
+   */
   function remove(n, undoable) {
     if (!page) return;
     var i = page.notes.indexOf(n);
@@ -1070,6 +1191,7 @@
     var cnt = page.notes.length;
     askConfirm(cnt === 1 ? "Delete 1 note?" : "Delete all " + cnt + " notes?", "Every note on this page will be removed.", "Delete all", reallyRemoveAll);
   }
+  /** Delete all notes of this page now (keeps a copy for Undo). */
   function reallyRemoveAll() {
     if (!page || !page.notes.length) return;
     var old = page.notes.slice();
@@ -1096,12 +1218,19 @@
   }
 
   // ---------- placing mode (free by default, Shift = stick to element) ----------
+  /** Draw the outline + label around an element while placing. @param {HTMLElement} t */
   function outline(t) {
     var r = t.getBoundingClientRect();
     Object.assign(hl.style, { display: "block", left: r.left - 3 + "px", top: r.top - 3 + "px", width: r.width + 6 + "px", height: r.height + 6 + "px" });
     hlTag.textContent = "⌖ " + label(t);
   }
   var mvRaf = 0;
+  /**
+   * Show the crosshair guides and coordinates at a point.
+   * @param {number} cx - viewport x
+   * @param {number} cy - viewport y
+   * @param {boolean} snap - element mode style
+   */
   function guides(cx, cy, snap) {
     fixed.classList.toggle("snap", !!snap);
     gh.style.display = gv.style.display = "block";
@@ -1132,6 +1261,7 @@
   });
   // Note (general) mode: click = note · Shift+click = element · drag over text = highlight
   var skipClick = false;
+  /** Text caret range at a viewport point (hit-tests the page, not our overlay). @returns {Range|null} */
   function caretAt(cx, cy) {
     if (!document.caretRangeFromPoint) return null;
     var pe = catcher.style.pointerEvents;
@@ -1142,6 +1272,7 @@
   }
   // Over text (Note mode) the overlay lets the mouse through: native text cursor + selection.
   var overText = false;
+  /** Let clicks reach the page text (to select it) or catch them again. @param {boolean} v */
   function setOverText(v) {
     overText = v;
     catcher.style.pointerEvents = v ? "none" : "";
@@ -1161,6 +1292,7 @@
     el: ["el", "Click a button, image or block", [["", "the note will follow it"], ["N", "note"], ["T", "text"], ["Esc", "cancel"]]],
     hl: ["hl", "Select the text you want to highlight", [["", "a note is added next to it"], ["N", "note"], ["E", "element"], ["Esc", "cancel"]]],
   };
+  /** Show or hide the placing hint / guide card for the current mode. */
   function showHint() {
     var canGuide = placing && tipsOn() && settings.guide !== false;
     if (dock) {
@@ -1194,6 +1326,7 @@
     tipsShown = true;
   }
   /** Change the kind of note while placing (N / E / T keys). */
+  /** @param {string} m - "free" | "el" | "hl" */
   function switchMode(m) {
     if (!placing || mode === m) return;
     mode = m;
@@ -1204,6 +1337,7 @@
     showHint();
   }
   /** m: "free" (default) | "el" stick to an element | "hl" highlight text */
+  /** Enter placing mode (a selection already on the page becomes a highlight note). @param {string} [m] */
   function startPlacing(m) {
     if (!visible) setVisible(true);
     mode = m || curType();
@@ -1233,6 +1367,7 @@
     true,
   );
   /** Highlight mode: outline the text block under the cursor so users see what can be selected. */
+  /** @param {number} cx - viewport x @param {number} cy - viewport y */
   function textUnder(cx, cy) {
     var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(cx, cy) : null;
     var node = r && r.startContainer;
@@ -1258,6 +1393,7 @@
       }
     }, 0);
   });
+  /** Leave placing mode and hide its HUD (guides, outline, hint). */
   function stopPlacing() {
     if (placing && tipsShown && settings.tips === undefined) setSettings({ tips: false }); // seen once → off until wanted again
     tipsShown = false;
@@ -1271,6 +1407,11 @@
     hl.style.display = gh.style.display = gv.style.display = coord.style.display = tx.style.display = "none";
     updateDock();
   }
+  /**
+   * Turn the current text selection into a highlight note placed at its end.
+   * @param {Selection} sel
+   * @returns {boolean} true when a note was created
+   */
   function highlightSelection(sel) {
     var h = hlFromSelection(sel);
     if (!h || !h.text.trim()) return false;
@@ -1281,6 +1422,7 @@
     create({ cx: last.right, cy: last.bottom, hl: h });
     return true;
   }
+  // keys: Escape closes the confirm dialog or leaves placing mode; N / E / T switch mode
   window.addEventListener(
     "keydown",
     function (e) {
@@ -1306,6 +1448,7 @@
     },
     true,
   );
+  // remember where the context menu opened (for "Pin a Page Note here" from the worker)
   document.addEventListener(
     "contextmenu",
     function (e) {
@@ -1330,6 +1473,10 @@
   });
 
   // ---------- dock ----------
+  /**
+   * Build the floating toolbar: brand, note navigation, add/split button, status, eye, menus.
+   * @returns {Object} the root element plus the parts other code updates (cnt, menu, modes, eye...)
+   */
   function buildDock() {
     var root = el("div", "dock");
     root.setAttribute("role", "toolbar");
@@ -1570,10 +1717,12 @@
     return { eye: eye, root: root, cnt: cnt, menu: menu, modes: modes, caret: caret, pos: pos, prev: prev, next: next, help: help, stLabel: stLabel, add: add, typeItems: typeItems };
   }
   /** Saved toolbar spot: stuck to the left or right edge, at the height the user dropped it. */
+  /** @returns {string} "l" or "r" */
   function dockSide() {
     var p = settings.dockPos;
     return p && p.side === "l" ? "l" : "r";
   }
+  /** Put the toolbar at its saved side and height (kept inside the window). */
   function placeDock() {
     var p = settings.dockPos || {};
     var b = isFinite(p.b) ? p.b : 16;
@@ -1613,6 +1762,12 @@
   }
   /** Small confirm dialog in the toolbar's style. */
   var cfm = null;
+  /**
+   * @param {string} title - heading
+   * @param {string} text - body text
+   * @param {string} okLabel - confirm button text
+   * @param {Function} fn - called when confirmed
+   */
   function askConfirm(title, text, okLabel, fn) {
     if (!cfm) {
       cfm = el("div", "cfm-bg");
@@ -1646,6 +1801,7 @@
     cfm.classList.add("on");
     cfm._no.focus();
   }
+  /** Close the dock's menus. */
   function closeMenus() {
     dock.menu.classList.remove("open");
     dock.modes.classList.remove("open");
@@ -1661,6 +1817,7 @@
   );
 
   /** Press + NOTE: click = place mode (or highlight the selection) · drag = drop a note where you release. */
+  /** @param {HTMLElement} btn - the add button */
   function dragToCreate(btn) {
     btn.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -1707,6 +1864,8 @@
     });
   }
 
+  // ---------- note navigation (prev / next in the dock) ----------
+  /** Notes sorted top-to-bottom, then left-to-right. @returns {Array<Object>} */
   function ordered() {
     return (page ? page.notes.slice() : []).sort(function (a, b) {
       var pa = place(a);
@@ -1714,12 +1873,14 @@
       return pa.y - pb.y || pa.x - pb.x;
     });
   }
+  /** Focus the next (1) or previous (-1) note. @param {number} d - direction */
   function step(d) {
     var list = ordered();
     if (!list.length) return;
     navIdx = (navIdx + d + list.length) % list.length;
     focusNote(list[navIdx].id);
   }
+  /** Show/hide the toolbar (setting off | auto | mini) and refresh its count and labels. */
   function updateDock() {
     var n = page ? page.notes.length : 0;
     var dm = settings.dock || "auto"; // off | auto | mini
@@ -1758,6 +1919,11 @@
   // ---------- toast / visibility / focus / links ----------
   var toastT = 0;
   /** Message bar. Info messages follow "Show tips"; the Undo bar has its own setting. */
+  /**
+   * @param {string} text - message
+   * @param {string} [action] - button label (e.g. "Undo")
+   * @param {Function} [fn] - button handler
+   */
   function say(text, action, fn) {
     if (action ? settings.undo === false : !tipsOn()) return;
     toast.textContent = "";
@@ -1783,6 +1949,7 @@
       toast.style.display = "none";
     }, ms);
   }
+  /** Copy text to the clipboard and confirm with a message. @param {string} text @param {string} msg */
   function copy(text, msg) {
     navigator.clipboard.writeText(text).then(
       function () {
@@ -1796,9 +1963,11 @@
   /** Notes show when "Show notes" is on and, in "only when I open Page Notes" mode, once revealed. */
   /** This page's notes hidden (per page, remembered in the page record). The toolbar stays. */
   var peek = false; // hidden page, but the user opened one of its notes: show for this visit only
+  /** Whether this page's notes are hidden right now (unless peeking). @returns {boolean} */
   function pageHidden() {
     return !!(page && page.hide) && !peek;
   }
+  /** Apply the per-page hide state to the notes layer, highlights and eye button. */
   function applyPageHide() {
     layer.style.display = pageHidden() ? "none" : "";
     applyHighlights();
@@ -1810,6 +1979,7 @@
       dock.eye.append(svg(off ? "eye" : "eyeOn"));
     }
   }
+  /** Hide or show this page's notes and save it in the page record. @param {boolean} v */
   function setPageHidden(v) {
     if (!page) return;
     peek = false;
@@ -1818,9 +1988,15 @@
     applyPageHide();
     flush();
   }
+  /** Whether notes should show, from settings and reveal state. @returns {boolean} */
   function wantVisible() {
     return settings.visible !== false && (settings.notesWhen !== "click" || revealed);
   }
+  /**
+   * Show or hide the whole overlay.
+   * @param {boolean} v - visible
+   * @param {boolean} [fromStorage] - change came from settings (don't save it again)
+   */
   function setVisible(v, fromStorage) {
     if (v && !fromStorage) revealed = true;
     visible = v;
@@ -1831,6 +2007,7 @@
     applyHighlights();
     updateDock();
   }
+  /** Scroll to a note, unfold it and flash it. @param {string} id - note id */
   function focusNote(id) {
     if (!page) return;
     var n = page.notes.find(function (x) {
@@ -1861,6 +2038,7 @@
       }, 2400);
     }
   }
+  /** Open the note another page asked for (storage "focus" entry, under 60 s old). */
   function checkFocus() {
     if (!alive()) return;
     chrome.storage.local.get("focus", function (r) {
@@ -1870,12 +2048,14 @@
       later(f.id);
     });
   }
+  /** Deep link: open the note named in #gx-note=<id>, then clean the URL. */
   function checkHash() {
     var m = /gx-note=([\w-]+)/.exec(location.hash);
     if (!m) return;
     history.replaceState(history.state, "", location.href.split("#")[0]);
     later(m[1]);
   }
+  /** Focus a note after a short delay so late layouts settle. @param {string} id - note id */
   function later(id) {
     // give late layouts (fonts, images, SPA hydration) a moment
     setTimeout(function () {
@@ -1888,6 +2068,7 @@
   addEventListener("hashchange", checkHash);
 
   // ---------- messages ----------
+  // commands from background.js (shortcuts, context menu, popup); always replies with this page's state
   chrome.runtime.onMessage.addListener(function (m, _s, reply) {
     if (!m) return;
     if (m.type === "place") startPlacing(m.mode); // no mode = the type picked in the dock
@@ -1929,6 +2110,7 @@
     document.fonts.ready.then(function () {
       scheduleReposition();
     });
+  // DOM changes: follow anchors, re-attach our host if a site removed it, tear down if orphaned
   var mo = new MutationObserver(function (list) {
     if (!alive()) return teardown();
     if (!host.isConnected) document.documentElement.appendChild(host);

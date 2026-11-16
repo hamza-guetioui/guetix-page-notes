@@ -1,8 +1,17 @@
 /* Guetix Page Notes — UI translations for the popup + settings page.
  * Language = settings.lang ("auto" / unset → browser language, fallback English).
- * HTML: data-i18n (text), data-i18n-html (trusted markup from this file only), data-i18n-title, data-i18n-aria. */
+ * HTML: data-i18n (text), data-i18n-html (trusted markup from this file only), data-i18n-title, data-i18n-aria.
+ *
+ * Structure:
+ * - D: dictionary { <lang code>: { <key>: string } }. English (en) is the full reference;
+ *   missing keys fall back to English, then to the key itself. "{n}"-style placeholders are filled by t().
+ * - LANGS: [code, native name] pairs shown in the pickers. RTL: right-to-left languages.
+ * - Adds to the PN namespace from shared.js (must load first): PN.lang, PN.langPref, PN.LANGS,
+ *   PN.t, PN.tn, PN.applyI18n, PN.initLang, PN.langPicker, PN.langMenu.
+ * - The chosen language is saved in chrome.storage.local settings.lang; changing it reloads the page. */
 /* eslint-disable no-var */
 (function () {
+  /** Translations: language code → { key: text }. */
   var D = {
     en: {
       showHere: "Show this page's notes", showHereD: "Only for the page you are on",
@@ -281,21 +290,42 @@
   ];
   var RTL = { ar: 1 };
 
+  /**
+   * Pick the language to use: the saved choice, else the browser language, else English.
+   * @param {string} pref - saved preference ("auto", unset or a language code)
+   * @returns {string} a language code present in D
+   */
   function resolve(pref) {
     if (pref && pref !== "auto" && D[pref]) return pref;
     var nav = (navigator.languages && navigator.languages[0]) || navigator.language || "en";
     var base = String(nav).toLowerCase().split("-")[0];
     return D[base] ? base : "en";
   }
+  /**
+   * Translate a key in the current language (PN.lang) and fill {placeholders}.
+   * @param {string} key - string key
+   * @param {Object} vars - placeholder values, e.g. { n: 3 } (optional)
+   * @returns {string}
+   */
   function t(key, vars) {
     var s = (D[PN.lang] && D[PN.lang][key]) || D.en[key] || key;
     if (vars) for (var k in vars) s = s.split("{" + k + "}").join(vars[k]);
     return s;
   }
-  /** Singular/plural pick: t1 for n === 1, tN otherwise. */
+  /**
+   * Singular/plural pick: t1 for n === 1, tN otherwise.
+   * @param {string} one - key for the singular text
+   * @param {string} many - key for the plural text
+   * @param {number} n - count (also passed as {n})
+   * @returns {string}
+   */
   function tn(one, many, n) {
     return t(n === 1 ? one : many, { n: n });
   }
+  /**
+   * Translate every data-i18n* element and set the page lang/dir.
+   * @param {HTMLElement} root - element to translate (defaults to document)
+   */
   function apply(root) {
     root = root || document;
     var doc = document.documentElement;
@@ -314,7 +344,10 @@
       n.setAttribute("aria-label", t(n.getAttribute("data-i18n-aria")));
     });
   }
-  /** Read settings.lang, set PN.lang, translate the page, then run cb. */
+  /**
+   * Read settings.lang, set PN.lang, translate the page, then run cb.
+   * @param {Function} cb - called when done (optional)
+   */
   function init(cb) {
     chrome.storage.local.get("settings", function (r) {
       PN.langPref = (r.settings && r.settings.lang) || "auto";
@@ -323,7 +356,10 @@
       if (cb) cb();
     });
   }
-  /** Fill a <select> with Auto + languages and save the choice (then reload to re-render). */
+  /**
+   * Fill a <select> with Auto + languages and save the choice (then reload to re-render).
+   * @param {HTMLElement} sel - the <select> element
+   */
   function picker(sel) {
     sel.textContent = "";
     var o = document.createElement("option");
@@ -348,6 +384,10 @@
     };
   }
 
+  /**
+   * Save the chosen language in settings.lang and reload the page.
+   * @param {string} code - language code or "auto"
+   */
   function save(code) {
     chrome.storage.local.get("settings", function (r) {
       var s = r.settings || {};
@@ -357,14 +397,31 @@
       });
     });
   }
+  /**
+   * Native name of a language (English if unknown).
+   * @param {string} code - language code
+   * @returns {string}
+   */
   function nameOf(code) {
     return (LANGS.filter(function (l) { return l[0] === code; })[0] || LANGS[0])[1];
   }
-  /** Compact language button (shows "EN") + custom menu that opens upward. */
+  /**
+   * Compact language button (shows "EN") + custom menu that opens upward.
+   * @param {HTMLElement} btn - toggle button
+   * @param {HTMLElement} list - menu list (<ul>) filled with options
+   * @param {HTMLElement} codeEl - element that shows the current language code
+   */
   function menu(btn, list, codeEl) {
     codeEl.textContent = PN.lang.toUpperCase();
     btn.title = t("lang") + " · " + nameOf(PN.lang);
     var CK = '<svg class="ck" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>';
+    /**
+     * Build one menu option.
+     * @param {string} code - language code or "auto"
+     * @param {string} cd - short code shown on the left
+     * @param {string} name - label
+     * @returns {HTMLElement} the <li>
+     */
     function item(code, cd, name) {
       var li = document.createElement("li");
       var b = document.createElement("button");
@@ -395,6 +452,7 @@
     LANGS.forEach(function (l) {
       list.append(item(l[0], l[0].toUpperCase(), l[1]));
     });
+    /** Show the menu and focus the selected option. */
     function open() {
       list.hidden = false;
       btn.setAttribute("aria-expanded", "true");
@@ -404,6 +462,7 @@
         cur.focus();
       }
     }
+    /** Hide the menu. */
     function close() {
       list.hidden = true;
       btn.setAttribute("aria-expanded", "false");
@@ -415,6 +474,7 @@
     document.addEventListener("click", function (e) {
       if (!list.hidden && !list.contains(e.target)) close();
     });
+    /** Keyboard: Escape closes, arrow keys move between options. */
     list.addEventListener("keydown", function (e) {
       var items = Array.from(list.querySelectorAll("button"));
       var i = items.indexOf(document.activeElement);
