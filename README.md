@@ -81,5 +81,5 @@ no account, no analytics and makes no network requests of its own. Details: [PRI
 
 ## License
 
-[MIT](LICENSE) © Hamza Guetioui — [guetix.com](https://guetix.com).
-Bundled fonts (Pixelify Sans, JetBrains Mono) are under the SIL Open Font License — see `extension/fonts/LICENSE.txt`.
+[MIT](LICENSE) [guetix.com](https://guetix.com).
+
