@@ -11,15 +11,53 @@
  */
 importScripts("shared.js");
 
+/** Toolbar button: dropdown popup by default; resizable side panel when settings.sidePanel is on and the browser supports it. */
+function usePanel() {
+  if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) return;
+  chrome.storage.local.get("settings", function (r) {
+    var on = !!(r.settings && r.settings.sidePanel);
+    chrome.sidePanel
+      .setPanelBehavior({ openPanelOnActionClick: on })
+      .then(function () {
+        return chrome.action.setPopup({ popup: on ? "" : "popup.html" }); // a set popup wins over the panel
+      })
+      .catch(function () {});
+  });
+}
+usePanel();
+chrome.runtime.onStartup.addListener(usePanel); // setPopup is not kept across browser restarts
+chrome.storage.onChanged.addListener(function (c) {
+  if (c.settings) {
+    usePanel();
+    devMenus();
+  }
+});
+
+/** "Copy all notes" and "Delete all notes" only show while inspect mode is on. */
+function devMenus() {
+  chrome.storage.local.get("settings", function (r) {
+    var on = !!(r.settings && r.settings.dev);
+    ["pn-copy", "pn-wipe"].forEach(function (id) {
+      chrome.contextMenus.update(id, { visible: on }, function () {
+        void chrome.runtime.lastError; // menu not created yet: onInstalled creates it with the right state
+      });
+    });
+  });
+}
+
 /**
  * On install/update: (re)create the context menu entries; open the welcome page on first install.
  * @param {Object} details - install details (reason: "install" | "update" | ...)
  */
 chrome.runtime.onInstalled.addListener(function (details) {
+  usePanel();
   chrome.contextMenus.removeAll(function () {
     chrome.contextMenus.create({ id: "pn-add", title: "Pin a Page Note here", contexts: ["page", "link", "image", "video", "audio", "frame", "editable"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
     chrome.contextMenus.create({ id: "pn-hl", title: "Highlight “%s” + note", contexts: ["selection"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
     chrome.contextMenus.create({ id: "pn-list", title: "Open all my Page Notes", contexts: ["action", "page"] });
+    chrome.contextMenus.create({ id: "pn-wipe", title: "Delete all notes (inspect mode)", contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
+    chrome.contextMenus.create({ id: "pn-copy", title: "Copy all notes", contexts: ["page"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
+    devMenus();
   });
   if (details.reason === "install") chrome.tabs.create({ url: chrome.runtime.getURL("notes.html?welcome=1") });
 });
@@ -59,12 +97,89 @@ function openDashboard() {
 }
 
 /**
+ * Copy every note from every site (current note set: inspect mode or normal) as Markdown, via the page.
+ * @param {Object} tab - tab where the menu was opened
+ */
+function copyAll(tab) {
+  if (!tab || tab.id == null) return;
+  chrome.storage.local.get(null, function (store) {
+    var dev = !!(store.settings && store.settings.dev);
+    PN.setDev(dev);
+    var pages = PN.allPages(store);
+    var list = [];
+    pages.forEach(function (p) {
+      p.notes.forEach(function (n) {
+        list.push({ page: p, note: n });
+      });
+    });
+    chrome.scripting
+      .executeScript({
+        target: { tabId: tab.id },
+        args: [dev ? PN.devText(pages) : PN.asText(list)], // inspect mode: same route + element-path format as the page menu's "Copy as text"
+        func: function (text) {
+          // service workers have no clipboard; the page does (execCommand fallback when the async API is refused)
+          return navigator.clipboard.writeText(text).catch(function () {
+            var t = document.createElement("textarea");
+            t.value = text;
+            t.style.cssText = "position:fixed;opacity:0";
+            document.documentElement.appendChild(t);
+            t.select();
+            document.execCommand("copy");
+            t.remove();
+          });
+        },
+      })
+      .catch(function () {});
+  });
+}
+
+/**
+ * Delete every inspect-mode note (all sites) and its snapshots, after a confirm in the page. Normal notes stay.
+ * @param {Object} tab - tab where the menu was opened
+ */
+function wipeDev(tab) {
+  if (!tab || tab.id == null) return;
+  chrome.storage.local.get(null, function (store) {
+    var dev = !!(store.settings && store.settings.dev);
+    PN.setDev(true);
+    var pages = PN.allPages(store);
+    var keys = Object.keys(store).filter(function (k) {
+      return k.indexOf(PN.PREFIX) === 0;
+    });
+    pages.forEach(function (p) {
+      p.notes.forEach(function (n) {
+        keys.push(PN.SHOT + n.id);
+      });
+    });
+    var n = pages.reduce(function (a, p) {
+      return a + p.notes.length;
+    }, 0);
+    PN.setDev(dev); // restore the active set for the rest of the worker
+    chrome.scripting
+      .executeScript({
+        target: { tabId: tab.id },
+        args: [n, pages.length],
+        func: function (n, sites) {
+          if (!n) return alert("No inspect-mode notes to delete."), false;
+          return confirm("Delete all " + n + " inspect-mode notes on " + sites + " pages? This can't be undone.");
+        },
+      })
+      .then(function (r) {
+        if (r && r[0] && r[0].result) chrome.storage.local.remove(keys);
+      })
+      .catch(function () {});
+  });
+}
+
+/**
  * Context menu click: open the dashboard, or ask the page to place a note at the clicked spot.
  * @param {Object} info - clicked menu item info
  * @param {Object} tab - tab where the menu was opened
  */
 chrome.contextMenus.onClicked.addListener(function (info, tab) {
   if (info.menuItemId === "pn-list") return openDashboard();
+  if (info.menuItemId === "pn-copy") return copyAll(tab);
+  if (info.menuItemId === "pn-wipe") return wipeDev(tab);
   if (tab && tab.id != null && PN.supported(tab.url)) send(tab.id, { type: "place-at-context" });
 });
 

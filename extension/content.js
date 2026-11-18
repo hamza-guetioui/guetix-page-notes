@@ -256,6 +256,7 @@
     next: '<path d="M10 4v12M5 11l5 5 5-5"/>',
     more: '<path d="M3.5 6.5h7M14.5 6.5h2M3.5 13.5h2M9.5 13.5h7"/><circle cx="12.5" cy="6.5" r="2"/><circle cx="7.5" cy="13.5" r="2"/>',
     x: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>',
+    min: '<path d="M4 4h12v12H4z"/><path d="M7 12.5h6"/>',
     caret: '<path d="M2.5 7.5 6 4l3.5 3.5"/>',
     left: '<path d="M7.5 2.5 4 6l3.5 3.5"/>',
     right: '<path d="M4.5 2.5 8 6l-3.5 3.5"/>',
@@ -383,14 +384,19 @@
   /** Read this page's record and the settings from storage, then render everything. */
   function load() {
     if (!alive()) return;
-    chrome.storage.local.get([key, "settings"], function (r) {
-      page = r[key] || null;
-      settings = r.settings || {};
-      visible = wantVisible();
-      host.style.display = visible ? "" : "none";
-      renderAll();
-      checkFocus();
-      checkHash();
+    chrome.storage.local.get("settings", function (s) {
+      // inspect mode keeps its own notes: pick the key before reading the page
+      PN.setDev(s.settings && s.settings.dev);
+      key = PN.keyFor(location.href);
+      chrome.storage.local.get(key, function (r) {
+        page = r[key] || null;
+        settings = s.settings || {};
+        visible = wantVisible();
+        host.style.display = visible ? "" : "none";
+        renderAll();
+        checkFocus();
+        checkHash();
+      });
     });
   }
   /** Return this page's record, creating an empty one if needed. @returns {Object} */
@@ -431,6 +437,7 @@
   var TYPES = { free: ["note", "Note"], el: ["el", "Element"], hl: ["hl", "Highlight"] };
   /** Note kind picked in the dock: "free", "el" or "hl". @returns {string} */
   function curType() {
+    if (settings.dev) return "el"; // inspect mode: element notes only
     return TYPES[settings.noteType] ? settings.noteType : "free";
   }
   var tipsShown = false;
@@ -459,7 +466,17 @@
   chrome.storage.onChanged.addListener(function (ch, area) {
     if (area !== "local") return;
     if (ch.settings) {
+      var wasDev = !!settings.dev;
       settings = ch.settings.newValue || {};
+      if (wasDev !== !!settings.dev) {
+        // switched between normal and inspect notes: show the other set
+        flush();
+        stopPlacing();
+        page = null;
+        navIdx = -1;
+        renderAll();
+        return load();
+      }
       setVisible(wantVisible(), true);
       if (!tipsOn()) hint.style.display = "none"; // Tips off anywhere → off on this page too
       updateDock();
@@ -847,6 +864,12 @@
       document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
     };
     text.onblur = function () {
+      // setting: fold a filled note once the user clicks away from it (not when clicking its own bar)
+      if (settings.autoMin && n.text.trim() && !root.matches(":hover")) {
+        n.min = true;
+        sync(n);
+        save();
+      }
       setTimeout(refreshView, 0); // empty notes stay on the page until the user deletes them
       // finished writing → retake the snapshot so it shows the note with its text
       if (n.text !== root._shotText) setTimeout(function () {
@@ -932,7 +955,7 @@
     var m = k.meta;
     m.textContent = "";
     m.append(el("span", "", "#" + PN.pad(ordinal(n)) + " · " + PN.when(n.updatedAt || n.createdAt)));
-    if (lost) m.append(el("span", "gxn-lost", n.hl ? "text changed" : "element moved"));
+    if (lost) m.append(el("span", "gxn-lost", n.hl ? "text changed" : "not visible"));
     else if (n.hl) m.append(el("span", "gxn-q", "▍“" + n.hl.text.replace(/\s+/g, " ").trim().slice(0, 40) + "”"));
     else if (n.anchor && n.quote) m.append(el("span", "gxn-q", "⌖ " + n.quote.slice(0, 32)));
     if (n.pri === "urgent") m.append(el("span", "gxn-urg", "URGENT"));
@@ -1185,8 +1208,46 @@
       });
   }
 
+  /** Inspect mode: delete every note on this site (all its pages) — with an Undo bar. */
+  function removeSite() {
+    chrome.storage.local.get(null, function (store) {
+      var site = PN.host(url);
+      var pages = PN.allPages(store).filter(function (p) {
+        return PN.host(p.url) === site && p.url !== url;
+      });
+      var cnt = (page ? page.notes.length : 0) + pages.reduce(function (a, p) { return a + p.notes.length; }, 0);
+      if (!cnt) return say("No notes on this site");
+      askConfirm(cnt === 1 ? "Delete 1 note?" : "Delete all " + cnt + " notes?", "Every note on " + site + " will be removed.", "Delete all", function () {
+        var others = {};
+        pages.forEach(function (p) {
+          others[PN.PREFIX + p.url] = p;
+        });
+        chrome.storage.local.remove(Object.keys(others));
+        var old = page ? page.notes.slice() : [];
+        var gone = pages.reduce(function (a, p) { return a.concat(p.notes); }, old.slice());
+        if (page) page.notes = [];
+        renderAll();
+        flush();
+        hl.style.display = "none";
+        var undone = false;
+        setTimeout(function () {
+          if (!undone && alive()) chrome.storage.local.remove(gone.map(function (n) { return PN.SHOT + n.id; }));
+        }, 6500);
+        say(cnt === 1 ? "1 note deleted" : cnt + " notes deleted", "Undo", function () {
+          undone = true;
+          chrome.storage.local.set(others);
+          if (old.length) {
+            ensurePage().notes = old.concat(page.notes);
+            renderAll();
+            save(true);
+          }
+        });
+      });
+    });
+  }
   /** Delete every note on this page — with an Undo bar (or a confirm when Undo is turned off). */
   function removeAll() {
+    if (settings.dev) return removeSite();
     if (!page || !page.notes.length) return say("No notes on this page");
     var cnt = page.notes.length;
     askConfirm(cnt === 1 ? "Delete 1 note?" : "Delete all " + cnt + " notes?", "Every note on this page will be removed.", "Delete all", reallyRemoveAll);
@@ -1328,7 +1389,7 @@
   /** Change the kind of note while placing (N / E / T keys). */
   /** @param {string} m - "free" | "el" | "hl" */
   function switchMode(m) {
-    if (!placing || mode === m) return;
+    if (!placing || mode === m || (settings.dev && m !== "el")) return;
     mode = m;
     if (overText) setOverText(false);
     tx.style.display = hl.style.display = "none";
@@ -1340,7 +1401,7 @@
   /** Enter placing mode (a selection already on the page becomes a highlight note). @param {string} [m] */
   function startPlacing(m) {
     if (!visible) setVisible(true);
-    mode = m || curType();
+    mode = settings.dev ? "el" : m || curType();
     var sel = getSelection();
     var hasSel = sel && !sel.isCollapsed && String(sel).trim().length > 1 && !host.contains(sel.anchorNode);
     if (hasSel && mode !== "el") return highlightSelection(sel);
@@ -1590,6 +1651,19 @@
     more.title = "Options";
     more.setAttribute("aria-haspopup", "menu");
     more.append(svg("more"));
+    var fold = el("button", "dk");
+    fold.type = "button";
+    fold.title = "Minimize all notes on this page";
+    fold.setAttribute("aria-label", fold.title);
+    fold.append(svg("min"));
+    fold.onclick = function () {
+      if (!page) return;
+      page.notes.forEach(function (n) {
+        n.min = true;
+        sync(n);
+      });
+      save();
+    };
     var eye = el("button", "dk eye");
     eye.type = "button";
     eye.onclick = function () {
@@ -1652,7 +1726,9 @@
       send({ type: "open-dashboard" });
     });
     item(menu, "copy", "", "Copy as text", "This page's notes, ready to paste", "", function () {
-      var txt = (page ? page.notes : [])
+      var notes = page ? page.notes : [];
+      if (settings.dev) return copyDev();
+      var txt = notes
         .map(function (n, i) {
           return "#" + PN.pad(i + 1) + (n.done ? " [done]" : "") + " " + (n.hl ? "\u201c" + n.hl.text.trim() + "\u201d - " : "") + n.text;
         })
@@ -1713,8 +1789,8 @@
     var vr = function (c) {
       return el("span", "vr" + (c ? " " + c : ""));
     };
-    root.append(brand, vr("n"), nav, vr("n"), split, status, vr(), eye, more, close, modes, menu);
-    return { eye: eye, root: root, cnt: cnt, menu: menu, modes: modes, caret: caret, pos: pos, prev: prev, next: next, help: help, stLabel: stLabel, add: add, typeItems: typeItems };
+    root.append(brand, vr("n"), nav, vr("n"), split, status, vr(), fold, eye, more, close, modes, menu);
+    return { fold: fold, eye: eye, root: root, cnt: cnt, menu: menu, modes: modes, caret: caret, pos: pos, prev: prev, next: next, help: help, stLabel: stLabel, add: add, typeItems: typeItems };
   }
   /** Saved toolbar spot: stuck to the left or right edge, at the height the user dropped it. */
   /** @returns {string} "l" or "r" */
@@ -1899,7 +1975,7 @@
       : 0;
     dock.root.firstChild.title = "Page Notes - " + n + " note" + (n === 1 ? "" : "s") + (n ? " (" + open + " open)" : "") + " - click to " + (settings.dockFolded ? "expand" : "minimize");
     dock.root.classList.toggle("placing", placing);
-    dock.eye.style.display = n ? "" : "none"; // only useful once the page has notes
+    dock.eye.style.display = dock.fold.style.display = n ? "" : "none"; // only useful once the page has notes
     fixed.classList.toggle("notips", !tipsOn()); // tips off: tools + actions only, no guidance text
     var ty = curType();
     dock.add.textContent = "";
@@ -1907,6 +1983,7 @@
     dock.add.title = (ty === "el" ? "Click, then click an element" : ty === "hl" ? "Click, then select text" : "Click, then click the page - or drag me onto the page") + " (Alt+Shift+N)";
     Object.keys(dock.typeItems).forEach(function (k) {
       dock.typeItems[k].setAttribute("aria-checked", String(k === ty));
+      dock.typeItems[k].style.display = settings.dev && k !== "el" ? "none" : ""; // inspect mode: element only
     });
     dock.stLabel.textContent = mode === "el" ? "Pick an element" : mode === "hl" ? "Select some text" : "Click to place";
     dock.pos.textContent = "";
@@ -1948,6 +2025,17 @@
     toastT = setTimeout(function () {
       toast.style.display = "none";
     }, ms);
+  }
+  /** Inspect mode: every note on this site, grouped by route, with the CSS path of each picked element. */
+  function copyDev() {
+    chrome.storage.local.get(null, function (store) {
+      var site = PN.host(url);
+      var pages = PN.allPages(store).filter(function (p) {
+        return PN.host(p.url) === site && p.url !== url;
+      });
+      if (page && page.notes.length) pages.unshift(page); // this page first, with unsaved edits
+      copy(PN.devText(pages), "Notes of this site copied as text");
+    });
   }
   /** Copy text to the clipboard and confirm with a message. @param {string} text @param {string} msg */
   function copy(text, msg) {
@@ -2072,6 +2160,7 @@
   chrome.runtime.onMessage.addListener(function (m, _s, reply) {
     if (!m) return;
     if (m.type === "place") startPlacing(m.mode); // no mode = the type picked in the dock
+    else if (m.type === "place-at-context" && settings.dev) startPlacing();
     else if (m.type === "place-at-context") {
       var sel = getSelection();
       if (!(sel && !sel.isCollapsed && String(sel).trim().length > 1 && highlightSelection(sel))) {
