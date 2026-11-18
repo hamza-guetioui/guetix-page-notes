@@ -12,6 +12,9 @@
     <style>
       html,body{height:600px;overflow:hidden}
       body{width:380px;background:var(--bg)}
+      html.panel,html.panel body{height:100%}
+      html.panel body{width:auto;margin:0}
+      html.panel .frame{height:calc(100% - 16px)}
       .frame{display:flex;flex-direction:column;height:584px;margin:8px;border:1px solid var(--ink);border-radius:var(--r);overflow:hidden;background:var(--panel);box-shadow:3px 3px 0 var(--ink)}
       .sec{border-bottom:1px solid var(--line)}
       .sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}

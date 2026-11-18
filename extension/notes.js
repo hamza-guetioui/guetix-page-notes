@@ -662,27 +662,7 @@
    * @returns {string}
    */
   function asText() {
-    var byPage = {};
-    var order = [];
-    selected().forEach(function (e) {
-      if (!byPage[e.page.url]) {
-        byPage[e.page.url] = { page: e.page, notes: [] };
-        order.push(e.page.url);
-      }
-      byPage[e.page.url].notes.push(e.note);
-    });
-    var out = ["# Page Notes", ""];
-    order.forEach(function (u) {
-      var g = byPage[u];
-      out.push("## " + (g.page.title || PN.host(u)), u, "");
-      g.notes.forEach(function (n) {
-        var line = "- " + (n.done ? "[x] " : "[ ] ") + (n.pri === "urgent" ? "**URGENT** " : "") + (n.text.trim() || "(empty note)").replace(/\n/g, "\n  ");
-        if (n.hl) line += "\n  > " + n.hl.text.replace(/\s+/g, " ").trim();
-        out.push(line);
-      });
-      out.push("");
-    });
-    return out.join("\n");
+    return PN.asText(selected());
   }
   /**
    * Export file name with today's date.
@@ -896,6 +876,7 @@
   function refresh() {
     chrome.storage.local.get(null, function (s) {
       store = s;
+      PN.setDev(s.settings && s.settings.dev); // inspect mode shows its own notes
       render();
     });
   }
