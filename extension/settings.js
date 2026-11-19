@@ -16,7 +16,8 @@
   var manifest = chrome.runtime.getManifest();
   var store = {};
   // key → default when unset (content.js treats visible/snapshots as on unless === false)
-  var TOGGLES = { visible: true, snapshots: true, tips: true, guide: true, undo: true };
+  var TOGGLES = { visible: true, snapshots: true, tips: true, guide: true, undo: true, dev: false, sidePanel: false, autoMin: false };
+  if (chrome.sidePanel) $("panelRow").style.display = ""; // browsers without side panels always use the dropdown
   // option cards: setting -> default
   var CHOICES = { notesWhen: "auto", dock: "auto", guideMode: "full" };
   var KEY_LABELS = { "place-note": "cPlace", "place-element": "cEl", "place-highlight": "cHl", "toggle-notes": "cToggle", _execute_action: "cPopup" };
@@ -67,6 +68,7 @@
   function render(s) {
     store = s;
     var settings = s.settings || {};
+    PN.setDev(settings.dev); // stats, export and "delete all" follow the active set of notes
     Object.keys(TOGGLES).forEach(function (k) {
       $(k).checked = settings[k] === undefined ? TOGGLES[k] : !!settings[k];
     });
@@ -237,7 +239,12 @@
   };
   /** Delete all notes and snapshots after confirmation. */
   $("wipe").onclick = function () {
-    var keys = keysWith(PN.PREFIX).concat(keysWith(PN.SHOT));
+    // only the active set (normal or inspect notes) and their snapshots: the other set stays
+    var keys = keysWith(PN.PREFIX).concat(
+      PN.allPages(store).reduce(function (a, p) {
+        return a.concat(p.notes.map(function (n) { return PN.SHOT + n.id; }));
+      }, []),
+    );
     if (!keys.length) return say(PN.t("nothing"));
     if (confirm(PN.t("confWipe"))) chrome.storage.local.remove(keys, function () { say(PN.t("wiped")); });
   };

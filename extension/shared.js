@@ -4,6 +4,7 @@
  *
  * Storage keys (chrome.storage.local):
  * - p:<normalized url> → page record { url, title, favicon, notes: Array<note>, updatedAt, hide? }
+ * - d:<normalized url> → same, for inspect-mode notes (kept apart from normal notes)
  * - s:<note id>        → JPEG data URL snapshot of that note (kept apart from the page record)
  *
  * Public API:
@@ -19,7 +20,7 @@
  */
 /* eslint-disable no-var */
 var PN = (function () {
-  var PREFIX = "p:"; // page record:  p:<normalized url>
+  var PREFIX = "p:"; // page record:  p:<normalized url>  ("d:" while inspect mode is on, see setDev)
   var SHOT = "s:"; // note snapshot: s:<note id>  (JPEG data URL, kept apart so typing never rewrites images)
   // Same palette as the @guetix/page-notes package.
   var COLORS = ["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"];
@@ -234,5 +235,61 @@ var PN = (function () {
     return { hide: p.hide === true ? true : undefined, url: normUrl(p.url), title: String(p.title || "").slice(0, 300), favicon: typeof p.favicon === "string" && /^https?:/i.test(p.favicon) ? p.favicon : "", notes: notes, updatedAt: num(p.updatedAt) || Date.now() };
   }
 
-  return { PREFIX: PREFIX, SHOT: SHOT, COLORS: COLORS, normUrl: normUrl, keyFor: keyFor, noteLink: noteLink, uid: uid, supported: supported, pad: pad, allPages: allPages, when: when, host: host, links: links, rich: rich, cleanPage: cleanPage };
+  /**
+   * Switch page records between normal ("p:") and inspect-mode ("d:") notes.
+   * @param {boolean} on - settings.dev
+   */
+  function setDev(on) {
+    PREFIX = on ? "d:" : "p:";
+    api.PREFIX = PREFIX;
+  }
+
+  /**
+   * Notes as readable Markdown, grouped by page.
+   * @param {Array<Object>} list - entries of { page, note }
+   * @returns {string}
+   */
+  function asText(list) {
+    var byPage = {};
+    var order = [];
+    list.forEach(function (e) {
+      if (!byPage[e.page.url]) {
+        byPage[e.page.url] = { page: e.page, notes: [] };
+        order.push(e.page.url);
+      }
+      byPage[e.page.url].notes.push(e.note);
+    });
+    var out = ["# Page Notes", ""];
+    order.forEach(function (u) {
+      var g = byPage[u];
+      out.push("## " + (g.page.title || host(u)), u, "");
+      g.notes.forEach(function (n) {
+        var line = "- " + (n.done ? "[x] " : "[ ] ") + (n.pri === "urgent" ? "**URGENT** " : "") + (String(n.text || "").trim() || "(empty note)").replace(/\n/g, "\n  ");
+        if (n.hl) line += "\n  > " + n.hl.text.replace(/\s+/g, " ").trim();
+        out.push(line);
+      });
+      out.push("");
+    });
+    return out.join("\n");
+  }
+
+  /**
+   * Inspect mode text: pages grouped by route, with the CSS path of each picked element.
+   * @param {Array<Object>} pages - page records
+   * @returns {string}
+   */
+  function devText(pages) {
+    return pages
+      .map(function (p) {
+        var lines = p.notes.map(function (n) {
+          var on = n.anchor && n.anchor.sel ? "note on " + n.anchor.sel + ": " : n.hl ? "note on \u201c" + n.hl.text.trim() + "\u201d: " : "";
+          return "- " + (n.done ? "[done] " : "") + on + n.text;
+        });
+        return "## Route: " + p.url + "\n\n# Visual changes \u2014 " + (p.title || p.url) + "\n<" + p.url + ">\n\n## Comments\n" + lines.join("\n");
+      })
+      .join("\n\n---\n\n");
+  }
+
+  var api = { asText: asText, devText: devText, setDev: setDev, PREFIX: PREFIX, SHOT: SHOT, COLORS: COLORS, normUrl: normUrl, keyFor: keyFor, noteLink: noteLink, uid: uid, supported: supported, pad: pad, allPages: allPages, when: when, host: host, links: links, rich: rich, cleanPage: cleanPage };
+  return api;
 })();

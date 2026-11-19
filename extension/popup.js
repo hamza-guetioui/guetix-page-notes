@@ -17,6 +17,10 @@
   };
   var manifest = chrome.runtime.getManifest();
   var HOW_URL = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
+  // side panel (vs dropdown popup): stays open, follows the active tab, fills the panel width
+  var inPanel = !(chrome.extension.getViews && chrome.extension.getViews({ type: "popup" }).indexOf(window) >= 0);
+  var close = inPanel ? function () {} : function () { window.close(); };
+  if (inPanel) document.documentElement.classList.add("panel");
   var tab = null; // the active browser tab
   var tabKey = ""; // storage key of the active tab's page
   var tabHost = ""; // host of the active tab ("" when unsupported)
@@ -55,7 +59,7 @@
    */
   function openUrl(url) {
     chrome.tabs.create({ url: url });
-    window.close();
+    close();
   }
 
   // small SVG paths used on note cards (12x12 viewBox)
@@ -166,7 +170,7 @@
       if (e.target.closest("a, button")) return; // links + status toggle handle themselves
       if (here) {
         toTab({ type: "focus", id: n.id }).then(function () {
-          window.close();
+          close();
         });
       } else openUrl(PN.noteLink(page.url, n.id));
     };
@@ -264,7 +268,7 @@
   /** Asks the active tab to place a new free note, then closes the popup. */
   function placeNote() {
     toTab({ type: "place", mode: "free" }).then(function () { // the popup's button is always a plain note
-      window.close();
+      close();
     });
   }
 
@@ -334,6 +338,8 @@
    */
   function render(store) {
     lastStore = store;
+    PN.setDev(store.settings && store.settings.dev); // inspect mode shows its own notes
+    if (tab && tab.url) tabKey = PN.keyFor(tab.url);
     var pages = PN.allPages(store);
     var ok = !!(tab && PN.supported(tab.url));
     var page = ok ? store[tabKey] : null;
@@ -473,6 +479,15 @@
   PN.initLang(function () {
     PN.langMenu($("langBtn"), $("langMenu"), $("langCode"));
     chrome.tabs.query({ active: true, currentWindow: true }, start);
+    if (inPanel) {
+      var reload = function () {
+        chrome.tabs.query({ active: true, currentWindow: true }, start);
+      };
+      chrome.tabs.onActivated.addListener(reload);
+      chrome.tabs.onUpdated.addListener(function (id, change) {
+        if (tab && id === tab.id && (change.url || change.title || change.favIconUrl)) reload();
+      });
+    }
     chrome.storage.onChanged.addListener(function () {
       chrome.storage.local.get(null, render);
     });
@@ -489,6 +504,7 @@
       $("title").textContent = tab.title || PN.t("thisTab");
       $("host").textContent = tab.url ? PN.host(tab.url) : "";
       if (PN.supported(tab.url)) toTab({ type: "reveal" }).catch(function () {}); // "show notes when I open Page Notes"
+      $("fav").style.display = "";
       if (tab.favIconUrl && /^https?:/.test(tab.favIconUrl)) $("fav").src = tab.favIconUrl;
       else $("fav").style.display = "none";
     }
