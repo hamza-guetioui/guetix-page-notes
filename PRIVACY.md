@@ -1,6 +1,6 @@
 # Privacy — Guetix Page Notes
 
-Last updated: 2026-11-10 · Full policy: https://guetix.com/components/page-notes-extension/privacy-policy
+Last updated: 2026-11-10 · Full policy: https://guetix.com/extensions/page-notes-extension/privacy-policy
 
 **Everything stays on your device.** Page Notes saves its data with `chrome.storage.local` in your browser profile.
 There is no account, no server, no analytics and no ads, and the extension makes no network requests of its own.
