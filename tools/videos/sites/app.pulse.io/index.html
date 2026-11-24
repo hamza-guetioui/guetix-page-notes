@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Overview · Acme · Pulse</title>
+<link rel="icon" href="/favicon.svg" />
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.4 "Segoe UI",system-ui,sans-serif;color:#0b1220;background:#fff}
+  .top{position:fixed;inset:0 0 auto 0;height:56px;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid #e2e8f0;background:#fff;z-index:2}
+  .org{display:flex;align-items:center;gap:10px;width:200px;font-weight:600}
+  .org i{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#4f46e5;color:#fff;font-style:normal;font-size:13px;font-weight:700}
+  .crumb{color:#94a3b8}.crumb b{color:#0b1220;font-weight:600}
+  .right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .search{display:flex;justify-content:space-between;align-items:center;width:240px;height:34px;padding:0 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#94a3b8;font-size:13px}
+  kbd{border:1px solid #e2e8f0;border-radius:4px;background:#fff;padding:0 5px;font:11px ui-monospace,monospace}
+  .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#fcd34d,#fb7185)}
+  .side{position:fixed;left:0;top:56px;bottom:0;width:220px;border-right:1px solid #e2e8f0;background:#f8fafc;padding:18px 12px;color:#475569}
+  .side p{display:flex;align-items:center;gap:10px;margin:0 0 4px;padding:8px 10px;border-radius:8px}
+  .side p span{width:15px;height:15px;border:2px solid #cbd5e1;border-radius:4px}
+  .side p.on{background:#eef2ff;color:#4338ca;font-weight:600}.side p.on span{border-color:#6366f1}
+  .side h6{margin:22px 10px 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8}
+  .live{display:flex;align-items:center;gap:8px;margin:0 10px;font-size:13px}.live i{width:8px;height:8px;border-radius:50%;background:#10b981}
+  main{margin-left:220px;padding:76px 28px 40px}
+  .hd{display:flex;align-items:center;justify-content:space-between}
+  h1{margin:0;font-size:26px;letter-spacing:-.02em}
+  .hd .act{display:flex;gap:8px;font-size:13px}.hd .act span{padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;color:#475569}.hd .act b{padding:6px 14px;border-radius:8px;background:#0b1220;color:#fff;font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:20px}
+  .kpi{position:relative;padding:16px 18px;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+  .kpi small{color:#64748b;font-weight:500;font-size:13px}.kpi b{display:block;margin-top:2px;font-size:30px;letter-spacing:-.02em}
+  .kpi em{font-style:normal;font-size:12px;font-weight:600;color:#059669}.kpi em.bad{color:#e11d48}.kpi em span{color:#94a3b8;font-weight:400}
+  .kpi svg{position:absolute;right:16px;bottom:16px}
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:18px}
+  .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+  .card h3{margin:0 0 6px;font-size:15px}
+  .legend{float:right;display:flex;gap:14px;font-size:12px;color:#64748b}.legend i{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%}
+  table{width:100%;border-collapse:collapse;font-size:13px}td{padding:9px 0;border-top:1px solid #f1f5f9}td:last-child{text-align:right;font-weight:600}
+  .bar{height:6px;border-radius:3px;background:#e0e7ff}.bar i{display:block;height:100%;border-radius:3px;background:#6366f1}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="org"><i>A</i> Acme Inc <span style="color:#94a3b8">▾</span></div>
+  <div class="crumb">Analytics &nbsp;/&nbsp; <b>Overview</b></div>
+  <div class="right"><div class="search">Search… <kbd>⌘K</kbd></div><div class="av"></div></div>
+</div>
+<div class="side">
+  <p class="on"><span></span>Overview</p><p><span></span>Revenue</p><p><span></span>Customers</p><p><span></span>Campaigns</p><p><span></span>Funnels</p><p><span></span>Settings</p>
+  <h6>Live</h6><div class="live"><i></i> 38 visitors now</div>
+</div>
+<main>
+  <div class="hd"><h1>Overview</h1><div class="act"><span>Last 30 days ▾</span><b>Export</b></div></div>
+  <div class="kpis">
+    <div class="kpi" id="k-revenue"><small>Revenue</small><b>$48,210</b><em>↑ 12.4% <span>vs last month</span></em><svg width="84" height="28"><polyline points="0,22 8,20 16,21 24,16 32,17 40,12 48,14 56,9 64,10 72,6 84,4" fill="none" stroke="#10b981" stroke-width="2"/></svg></div>
+    <div class="kpi" id="k-signups"><small>Signups</small><b>1,284</b><em>↑ 31.0% <span>vs last month</span></em><svg width="84" height="28"><polyline points="0,24 8,21 16,22 24,18 32,15 40,16 48,11 56,12 64,8 72,7 84,3" fill="none" stroke="#10b981" stroke-width="2"/></svg></div>
+    <div class="kpi" id="k-churn"><small>Churn</small><b>2.1%</b><em class="bad">↑ 0.4 pt <span>vs last month</span></em><svg width="84" height="28"><polyline points="0,20 8,21 16,18 24,19 32,15 40,16 48,12 56,13 64,9 72,8 84,5" fill="none" stroke="#e11d48" stroke-width="2"/></svg></div>
+    <div class="kpi" id="k-nps"><small>NPS</small><b>62</b><em>↑ 4 <span>vs last month</span></em><svg width="84" height="28"><polyline points="0,18 8,19 16,17 24,16 32,17 40,14 48,13 56,14 64,11 72,10 84,9" fill="none" stroke="#10b981" stroke-width="2"/></svg></div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="legend"><span><i style="background:#6366f1"></i>Signups</span><span><i style="background:#cbd5e1"></i>Visitors</span></div><h3>Signups &amp; visitors</h3>
+      <svg id="chart" width="100%" height="300" viewBox="0 0 760 300" preserveAspectRatio="none"></svg></div>
+    <div class="card"><h3>Top channels</h3>
+      <table>
+        <tr><td>Organic search</td><td>41%</td></tr><tr><td colspan="2"><div class="bar"><i style="width:41%"></i></div></td></tr>
+        <tr><td>Paid ads</td><td>27%</td></tr><tr><td colspan="2"><div class="bar"><i style="width:27%"></i></div></td></tr>
+        <tr><td>Newsletter</td><td>18%</td></tr><tr><td colspan="2"><div class="bar"><i style="width:18%"></i></div></td></tr>
+        <tr><td>Referrals</td><td>14%</td></tr><tr><td colspan="2"><div class="bar"><i style="width:14%"></i></div></td></tr>
+      </table></div>
+  </div>
+</main>
+<script>
+  var S=[212,240,228,251,262,248,270,284,265,291,280,302,318,296,322,309,334,318,342,331,356,612,410,372,360,371,386,368,394,405];
+  var V=[520,560,540,580,600,570,610,640,600,650,630,660,690,650,700,680,720,700,730,710,760,980,820,770,750,760,790,760,800,820];
+  var c=document.getElementById('chart'),x=function(i){return 40+i*(700/29)},y=function(v){return 270-v/1000*250},h='';
+  [0,250,500,750,1000].forEach(function(v){h+='<line x1="40" x2="740" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#eef2f7"/><text x="30" y="'+(y(v)+4)+'" text-anchor="end" font-size="10" fill="#94a3b8">'+v+'</text>'});
+  h+='<polyline points="'+V.map(function(v,i){return x(i)+','+y(v)}).join(' ')+'" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="4 4"/>';
+  h+='<polygon points="40,'+y(0)+' '+S.map(function(v,i){return x(i)+','+y(v)}).join(' ')+' 740,'+y(0)+'" fill="rgba(99,102,241,.14)"/>';
+  h+='<polyline points="'+S.map(function(v,i){return x(i)+','+y(v)}).join(' ')+'" fill="none" stroke="#6366f1" stroke-width="2.5"/>';
+  h+='<circle cx="'+x(21)+'" cy="'+y(612)+'" r="5" fill="#6366f1" stroke="#fff" stroke-width="2.5"/>';
+  c.innerHTML=h;
+</script>
+</body>
+</html>

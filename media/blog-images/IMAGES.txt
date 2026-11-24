@@ -1,0 +1,151 @@
+========================================================================
+IMAGES — Sticky Notes on Any Website: Meet Page Notes
+========================================================================
+
+Folder : public/blogs/page-notes-chrome-extension/
+Topic  : Developer Tools
+Colour : warm amber  #fbbf24   (the one accent colour for every image of this story)
+Idea   : A dark portfolio website with yellow, pink and green sticky notes pinned on it and a small orange toolbar in the corner
+
+EVERY STORY NEEDS 3 IMAGES
+  1. COVER     — the website image (cards, article header, link previews)
+  2. INSIDE    — the picture(s) shown inside the article text
+  3. MAGAZINE  — portrait.png, the full page in the flip-through magazine
+
+STATUS   (generated from the files in this folder)
+  [DONE]     1  cover.png                 WEBSITE — cards, article header, social share
+  [DONE]     2  video-notes.png           INSIDE the article
+  [DONE]     2  highlight.png             INSIDE the article
+  [DONE]     2  extension-bar.png         INSIDE the article
+  [DONE]     2  all-notes.png             INSIDE the article
+  [DONE]     3  portrait.png              MAGAZINE full-page opener
+  [OPTIONAL] 3b cutout.png                MAGAZINE cover pop-out
+  [AUTO]     glyph.gif / glyph-still.webp     generated animation — do NOT replace
+
+HOW TO ADD
+  1. Save the image in THIS folder with the exact file name above (PNG or JPG).
+  2. Run:  node scripts/blog/optimize-images.mjs   (makes the small .webp)
+  3. Run:  node scripts/blog/write-image-briefs.mjs (updates this STATUS)
+  4. Rebuild / redeploy. Missing images are fine — the site falls back to
+     the next image, then to the story's animated panel.
+
+STYLE FOR THE COVER + MAGAZINE IMAGES
+  Modern editorial magazine art direction (think WIRED / Kinfolk tech
+  issue): one bold hero subject, strong graphic composition, lots of
+  negative space, premium 3D render or photo-real, dramatic rim light,
+  near-black background with warm amber (#fbbf24) as the single accent light
+  colour, subtle film grain, crisp details, high contrast. NO text, NO
+  letters, NO numbers, NO logos, NO UI labels, NO watermark.
+
+------------------------------------------------------------------------
+1) COVER — cover.png   [DONE]
+------------------------------------------------------------------------
+Size   : 2400 x 1260 (1.91:1). Minimum 1200 x 630.
+Used in: blog cards, the featured slot on /blog, the article header, link
+         previews (WhatsApp, X, LinkedIn…). Also the magazine fallback.
+Rules  : NO title or words in the picture — the site prints the title next to it
+         and translates it into 10 languages. Subject in the CENTRE third
+         (it is cropped to 16:9 and 4:3 on cards).
+Note   : this story uses a real product screenshot as cover — keep it.
+Prompt :
+  Wide 1.91:1 editorial header image. A dark portfolio website with yellow,
+  pink and green sticky notes pinned on it and a small orange toolbar in the
+  corner. Hero subject centred with breathing room left and right. Modern
+  editorial magazine art direction (think WIRED / Kinfolk tech issue): one
+  bold hero subject, strong graphic composition, lots of negative space,
+  premium 3D render or photo-real, dramatic rim light, near-black background
+  with warm amber (#fbbf24) as the single accent light colour, subtle film
+  grain, crisp details, high contrast. NO text, NO letters, NO numbers, NO
+  logos, NO UI labels, NO watermark.
+
+------------------------------------------------------------------------
+2) INSIDE THE ARTICLE
+------------------------------------------------------------------------
+Size   : 3:2, 1536 x 1024 (or larger, same ratio).
+Used in: inside the article text, full reading width, with the caption below.
+Style  :
+  Clean modern explainer illustration, isometric or flat-3D, near-black
+  background, warm amber (#fbbf24) as the single accent colour with
+  white/grey neutrals, generous spacing, readable at small size. Short
+  labels only if they are essential (max 3 words each, English); prefer
+  icons and arrows. No logos, no watermark.
+
+  - video-notes.png   [DONE]
+    What it shows: A video page with a yellow sticky note on the player and
+    a pink 'watch later' note next to a recommended video
+    Caption under it: "A note on the minute you want to remember, and a
+    'watch later' next to the video you want to watch."
+    Prompt:
+      3:2 explainer illustration. A video page with a yellow sticky note on
+      the player and a pink 'watch later' note next to a recommended video.
+      Clean modern explainer illustration, isometric or flat-3D, near-black
+      background, warm amber (#fbbf24) as the single accent colour with
+      white/grey neutrals, generous spacing, readable at small size. Short
+      labels only if they are essential (max 3 words each, English); prefer
+      icons and arrows. No logos, no watermark.
+
+  - highlight.png   [DONE]
+    What it shows: A documentation page with one sentence highlighted in
+    yellow and a sticky note next to it
+    Caption under it: "Highlight a sentence and add your thoughts next to
+    it."
+    Prompt:
+      3:2 explainer illustration. A documentation page with one sentence
+      highlighted in yellow and a sticky note next to it. Clean modern
+      explainer illustration, isometric or flat-3D, near-black background,
+      warm amber (#fbbf24) as the single accent colour with white/grey
+      neutrals, generous spacing, readable at small size. Short labels only
+      if they are essential (max 3 words each, English); prefer icons and
+      arrows. No logos, no watermark.
+
+  - extension-bar.png   [DONE]
+    What it shows: A dashboard with sticky notes and the Page Notes popup
+    open from the browser toolbar
+    Caption under it: "The extension bar: this page, this site, everywhere."
+    Prompt:
+      3:2 explainer illustration. A dashboard with sticky notes and the Page
+      Notes popup open from the browser toolbar. Clean modern explainer
+      illustration, isometric or flat-3D, near-black background, warm amber
+      (#fbbf24) as the single accent colour with white/grey neutrals,
+      generous spacing, readable at small size. Short labels only if they
+      are essential (max 3 words each, English); prefer icons and arrows. No
+      logos, no watermark.
+
+  - all-notes.png   [DONE]
+    What it shows: The All notes page with cards for every note, each with a
+    snapshot, status switch and page link
+    Caption under it: "All notes: every note from every site, in one place."
+    Prompt:
+      3:2 explainer illustration. The All notes page with cards for every
+      note, each with a snapshot, status switch and page link. Clean modern
+      explainer illustration, isometric or flat-3D, near-black background,
+      warm amber (#fbbf24) as the single accent colour with white/grey
+      neutrals, generous spacing, readable at small size. Short labels only
+      if they are essential (max 3 words each, English); prefer icons and
+      arrows. No logos, no watermark.
+
+------------------------------------------------------------------------
+3) MAGAZINE — portrait.png   [DONE]
+------------------------------------------------------------------------
+Size   : 1800 x 2400 (upright 3:4). Minimum 1200 x 1600.
+Used in: the MAGAZINE — this story's full-page opener, its page card in
+         "Keep turning" and the Contents tile; the whole magazine cover when
+         this is the newest story. Without it the cover is cropped (looks worse).
+Rules  : top 30% calm and dark (the headline is printed there); subject in the
+         lower two-thirds; ~6% empty margin on every side; NO text.
+Prompt :
+  Vertical 3:4 full-page magazine feature image. A dark portfolio website
+  with yellow, pink and green sticky notes pinned on it and a small orange
+  toolbar in the corner. Hero subject in the lower two-thirds, clean dark
+  empty space at the top for a big headline, cinematic depth. Modern
+  editorial magazine art direction (think WIRED / Kinfolk tech issue): one
+  bold hero subject, strong graphic composition, lots of negative space,
+  premium 3D render or photo-real, dramatic rim light, near-black background
+  with warm amber (#fbbf24) as the single accent light colour, subtle film
+  grain, crisp details, high contrast. NO text, NO letters, NO numbers, NO
+  logos, NO UI labels, NO watermark.
+
+3b) cutout.png   [OPTIONAL]
+  Same canvas as portrait.png with a TRANSPARENT background (remove the
+  background of portrait.png — do not crop or move anything). Used on the
+  magazine cover so the subject pops in front of the "Guetix/blog" logo.

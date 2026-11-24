@@ -3,3 +3,8 @@ node_modules/
 *.zip
 .DS_Store
 Thumbs.db
+# large local media exports (regenerate with tools/videos)
+/media/tutorial/youtube/*
+!/media/tutorial/youtube/YOUTUBE-and-INSTAGRAM.md
+/media/tutorial/reels/
+/media/tutorial/gifs/
