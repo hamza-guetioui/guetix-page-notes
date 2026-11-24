@@ -217,6 +217,7 @@ var PN = (function () {
           id: n.id,
           text: String(n.text || "").slice(0, 20000),
           color: COLORS.indexOf(n.color) > -1 ? n.color : COLORS[0],
+          op: n.op ? Math.max(0.3, Math.min(1, Number(n.op) || 1)) : undefined, // note opacity (double-click a color dot)
           x: num(n.x),
           y: num(n.y),
           anchor: n.anchor && typeof n.anchor.sel === "string" ? { sel: n.anchor.sel.slice(0, 1000), fx: num(n.anchor.fx), dy: num(n.anchor.dy) } : null,

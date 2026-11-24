@@ -12,7 +12,7 @@
 importScripts("shared.js");
 
 /** Toolbar button: dropdown popup by default; resizable side panel when settings.sidePanel is on and the browser supports it. */
-function usePanel() {
+function applyPanelMode() {
   if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) return;
   chrome.storage.local.get("settings", function (r) {
     var on = !!(r.settings && r.settings.sidePanel);
@@ -24,11 +24,11 @@ function usePanel() {
       .catch(function () {});
   });
 }
-usePanel();
-chrome.runtime.onStartup.addListener(usePanel); // setPopup is not kept across browser restarts
+applyPanelMode();
+chrome.runtime.onStartup.addListener(applyPanelMode); // setPopup is not kept across browser restarts
 chrome.storage.onChanged.addListener(function (c) {
   if (c.settings) {
-    usePanel();
+    applyPanelMode();
     devMenus();
   }
 });
@@ -50,7 +50,7 @@ function devMenus() {
  * @param {Object} details - install details (reason: "install" | "update" | ...)
  */
 chrome.runtime.onInstalled.addListener(function (details) {
-  usePanel();
+  applyPanelMode();
   chrome.contextMenus.removeAll(function () {
     chrome.contextMenus.create({ id: "pn-add", title: "Pin a Page Note here", contexts: ["page", "link", "image", "video", "audio", "frame", "editable"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
     chrome.contextMenus.create({ id: "pn-hl", title: "Highlight “%s” + note", contexts: ["selection"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
@@ -295,6 +295,17 @@ chrome.runtime.onMessage.addListener(function (msg, sender, reply) {
     if (chrome.action.setBadgeTextColor) Promise.resolve(chrome.action.setBadgeTextColor({ tabId: tid, color: "#ffffff" })).catch(quiet);
   }
   if (msg.type === "open-dashboard") openDashboard();
+  // shortcuts as the browser really assigned them (content scripts can't read chrome.commands)
+  if (msg.type === "keys") {
+    chrome.commands.getAll(function (list) {
+      var keys = {};
+      (list || []).forEach(function (c) {
+        keys[c.name] = c.shortcut || "";
+      });
+      reply({ keys: keys });
+    });
+    return true; // async reply
+  }
   if (msg.type === "fonts") {
     fontsData().then(function (fonts) {
       reply({ fonts: fonts });
