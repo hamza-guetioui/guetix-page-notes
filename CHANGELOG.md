@@ -1,6 +1,9 @@
 # Changelog
 
 ## 1.5.0
+- Popup empty states: shorter titles ("No notes yet", "Can’t add notes on this page" with a no-entry icon), outlined icon tiles.
+- Top-edge remove target: outline style; red bin with a lid that opens when armed, grey ✕ when cancelling a new note. "Note deleted · Undo" bar in an orange outline.
+- On-page toolbar sits closer to the window edges (8px) and folds to its logo after you finish writing (hover or click opens it).
 - All notes: view switcher (Sticky glass, Page preview, Timeline; Board kept in code but hidden) and one Filter dropdown (status + tags, counts, remembered). Header, toolbar and footer stay fixed; only the notes section scrolls. Empty state: centred, unboxed, with a collapsible "How to add notes" panel (tips + Watch tour).
 - Settings: Toolbar and Personal merged into "Customize"; orange Export backup; Preview buttons show on hover.
 - Notes: drag only from the centre grip of the header; size limited to the window (max 460x480), long text scrolls.
