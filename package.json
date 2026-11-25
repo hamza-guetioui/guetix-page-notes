@@ -1,11 +1,11 @@
 {
   "name": "guetix-page-notes",
-  "version": "1.3.1",
+  "version": "1.5.0",
   "private": true,
   "description": "Sticky notes on any website — a Chrome extension (Manifest V3).",
   "license": "MIT",
   "author": "Hamza Guetioui (https://guetix.com)",
-  "homepage": "https://guetix.com/components/page-notes-extension",
+  "homepage": "https://guetix.com/extensions/page-notes-extension",
   "repository": { "type": "git", "url": "https://github.com/hamza-guetioui/guetix-page-notes.git" },
   "type": "module",
   "engines": { "node": ">=18" },

@@ -19,11 +19,11 @@
   var TOGGLES = { visible: true, snapshots: true, tips: true, guide: true, undo: true, dev: false, sidePanel: false, autoMin: false };
   if (chrome.sidePanel) $("panelRow").style.display = ""; // browsers without side panels always use the dropdown
   // option cards: setting -> default
-  var CHOICES = { notesWhen: "auto", dock: "auto", guideMode: "full" };
+  var CHOICES = { notesWhen: "auto", dock: "auto", guideMode: "full", theme: "system" };
   var KEY_LABELS = { "place-note": "cPlace", "place-element": "cEl", "place-highlight": "cHl", "toggle-notes": "cToggle", _execute_action: "cPopup" };
 
   $("ver").textContent = manifest.version;
-  $("how").href = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
+  $("how").href = (manifest.homepage_url || "https://guetix.com/extensions/page-notes-extension") + "#how-it-works";
 
   var toastT;
   /**

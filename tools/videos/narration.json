@@ -1,0 +1,94 @@
+{
+  "how-it-works": {
+    "intro": "Page Notes: sticky notes on any website. Here's how it works, in two minutes.",
+    "pre": ["First, add Page Notes to Chrome from the Chrome Web Store. Then pin its orange icon next to the address bar, so it's always one click away."],
+    "chapters": [
+      "Watching a video? Click the Page Notes icon, hit New note, then click where you want the note, and type.",
+      "Found something for later? Drag a note straight off the toolbar, and drop it right next to it.",
+      "To highlight text, press Alt, Shift, L, or choose Text. Select a sentence: it's highlighted, and your note sits right next to it.",
+      "Press Alt, Shift, E to stick a note to an element. It follows that card when the layout changes.",
+      "Come back later, and every note is right where you left it. Use the arrows on the toolbar to step through them.",
+      "The extension bar shows your notes on this page, this site, and everywhere, with quick filters.",
+      "All notes lists every note from every site. Search, and jump straight back to it.",
+      "And settings let you make it yours."
+    ],
+    "post": ["Your notes never leave your browser. No account, no server, no tracking. And it's open source."],
+    "outro": "That's Page Notes. It's free. Add it to Chrome from the link below, and check out the other videos in this playlist."
+  },
+  "extension-bar": {
+    "intro": "Page Notes, part two: the extension bar. Everything is one click away.",
+    "chapters": [
+      "Click the Page Notes icon next to the address bar. The badge shows how many notes are on this page.",
+      "Up top: notes on this page, this site, and everywhere.",
+      "The sites menu lists every site you've noted, with counts. Pick one to see its notes.",
+      "Switch between this page, this site, and your recent notes.",
+      "Quick filters show only urgent, open, or done notes.",
+      "Mark a note done right from the list.",
+      "Click a card to jump to that note.",
+      "Need a new note? Click New note, then click on the page and type.",
+      "This switch hides the notes on this page only. Nothing is deleted.",
+      "Tips and colors shows the shortcuts. And the extension bar speaks ten languages.",
+      "The gear opens settings, and All notes opens the full list."
+    ],
+    "outro": "That's the extension bar. Next up: the on-page toolbar. Page Notes is free, link below."
+  },
+  "toolbar": {
+    "intro": "Page Notes, part three: the toolbar on the page.",
+    "chapters": [
+      "Pages with notes get a small toolbar: the note count, arrows, the New note button, and a few handy buttons.",
+      "Click plus Note, then click anywhere on the page. A short guide shows the tricks while you place it.",
+      "The arrow next to Note lets you choose a free note, a note stuck to an element, or a text highlight.",
+      "Choose Text, then select a few words. They're highlighted, with your note right next to them.",
+      "While placing, press N for a note, E for an element, or T for text. Escape cancels.",
+      "Or just grab plus Note, and drop it exactly where you want.",
+      "Use the arrows to jump from note to note.",
+      "The eye hides this page's notes. Click again to bring them back.",
+      "Options: all your notes, copy this page's notes as text, delete all, settings, and quick switches.",
+      "Drag the toolbar by its logo. It snaps to the nearest side.",
+      "Click the logo to minimize it. And the X closes it until your next note."
+    ],
+    "outro": "That's the toolbar. Next: every option on a note. Page Notes is free, link below."
+  },
+  "note-options": {
+    "intro": "Page Notes, part four: every option on a note.",
+    "chapters": [
+      "Reviewing a site? Click plus Note, click the spot, and type. Links turn into little chips.",
+      "Pick one of four colors.",
+      "Mark it urgent.",
+      "Mark it done, or reopen it.",
+      "Copy a link to this exact note.",
+      "Fold it into a small tab, and unfold it again.",
+      "Drag the top bar to move it, and drag the corner to resize it.",
+      "Delete it. Changed your mind? Click Undo.",
+      "Come back tomorrow, and it's still there."
+    ],
+    "outro": "That's every note option. Next: the All notes page. Page Notes is free, link below."
+  },
+  "all-notes": {
+    "intro": "Page Notes, part five: all your notes in one place.",
+    "chapters": [
+      "All notes shows every note from every site, with a snapshot of where it sits.",
+      "Search notes, page titles, and links.",
+      "Filter by open, done, urgent, highlights, or links. The counts update as you go. Or filter by color.",
+      "Narrow it to one site, and change the sort.",
+      "Every card has an open and done switch.",
+      "Edit opens the note as a sticky note. Change the text or the color, then save.",
+      "Click Select, tick a few cards, then mark them done, urgent, or share them all at once.",
+      "And the arrow takes you right back to the note on its page."
+    ],
+    "outro": "That's All notes. Last one: settings. Page Notes is free, link below."
+  },
+  "settings": {
+    "intro": "Page Notes, part six: settings. Make it yours.",
+    "chapters": [
+      "Settings live right next to All notes.",
+      "Turn every note off at once, or show notes only when you open Page Notes.",
+      "Choose the toolbar style: when needed, always small, or hidden.",
+      "Tips while you place notes, the guide style, and the undo bar.",
+      "Pick one of ten languages, and keep snapshots for your list.",
+      "See your keyboard shortcuts, and change them in Chrome.",
+      "Your data stays on this device. Export a backup, import it elsewhere, or clear it."
+    ],
+    "outro": "That's settings, and the whole tour. Page Notes is free and open source. Add it to Chrome from the link below."
+  }
+}

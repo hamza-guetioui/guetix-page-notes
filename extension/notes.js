@@ -1,7 +1,7 @@
 /* Guetix Page Notes — "All my notes": every note from every page, as visual cards.
  *
  * Main parts:
- *  - Routing between All notes and Settings (#settings).
+ *  - Routing between All notes, Guides (#guides) and Settings (#settings).
  *  - Helpers (DOM builder, toast, storage save, filters).
  *  - Note cards, the sticky-note editor, render() of the grid.
  *  - Controls: tabs, color / site / sort / search filters, footer, settings nav.
@@ -16,30 +16,63 @@
     return document.getElementById(id);
   };
   var store = {}; // full chrome.storage.local snapshot
-  // current filters: tab, color, site host, sort ("new" | "old" | "site"), search text
-  var state = { tab: "all", color: null, site: "", sort: "new", q: "" };
+  // current filters: status ("all" | "open" | "done"), tags (ticked tag ids, all must match),
+  // color, site host, sort ("new" | "old" | "site"), search text
+  var state = { status: "all", tags: [], color: null, site: "", sort: "new", q: "" };
   var editing = null; // id of the note open in the editor (blocks re-render)
   var selecting = false; // select mode on/off
   var picked = {}; // note id -> true
   var lastList = []; // entries shown in the last render
-  // filter tabs: [id, label, dot color class]
-  var TABS = [
-    ["all", "All", ""],
-    ["open", "Open", "o"],
-    ["done", "Done", "g"],
-    ["urgent", "Urgent", "r"],
-    ["hl", "Highlights", "y"],
-    ["links", "With links", "p"],
+  // filter dropdown options: [id, i18n key, dot color class]. Status = one choice, tags = any number (AND).
+  var STATUSES = [
+    ["all", "fltAny", "n"],
+    ["open", "fltOpen", "o"],
+    ["done", "fltDone", "g"],
+  ];
+  var TAGS = [
+    ["urgent", "fltUrgent", "r"],
+    ["hl", "fltHl", "y"],
+    ["links", "fltLinks", "p"],
   ];
 
   // ---------- All notes | Settings (same page, #settings) ----------
   /** Shows the notes or settings view based on the URL hash. */
   function route() {
-    var st = location.hash === "#settings";
-    document.body.setAttribute("data-view", st ? "settings" : "notes");
-    $("navNotes").setAttribute("aria-pressed", String(!st));
-    $("navSettings").setAttribute("aria-pressed", String(st));
-    document.title = (st ? "Settings" : "All my notes") + " · Page Notes";
+    var v = location.hash === "#settings" ? "settings" : location.hash === "#guides" ? "guides" : "notes";
+    document.body.setAttribute("data-view", v);
+    $("navNotes").setAttribute("aria-pressed", String(v === "notes"));
+    $("navGuides").setAttribute("aria-pressed", String(v === "guides"));
+    $("navSettings").setAttribute("aria-pressed", String(v === "settings"));
+    document.title = (v === "settings" ? "Settings" : v === "guides" ? "Guides" : "All my notes") + " · Page Notes";
+    if (v === "guides") guideKeys();
+  }
+  // real shortcuts (name -> "Ctrl+Shift+Y" / ""), for the empty-state steps
+  var CMD = {};
+  if (chrome.commands && chrome.commands.getAll)
+    chrome.commands.getAll(function (list) {
+      (list || []).forEach(function (c) {
+        CMD[c.name] = c.shortcut || "";
+      });
+    });
+  /** Fills the Guides shortcut list from the shortcuts the browser really assigned. */
+  function guideKeys() {
+    if (!chrome.commands || !chrome.commands.getAll) return;
+    chrome.commands.getAll(function (list) {
+      var box = $("gKeys");
+      box.textContent = "";
+      (list || []).forEach(function (c) {
+        if (!c.description) return;
+        var r = document.createElement("div");
+        r.className = "kr";
+        var k = document.createElement(c.shortcut ? "kbd" : "small");
+        if (!c.shortcut) k.className = "none";
+        k.textContent = c.shortcut || "Not set";
+        var t = document.createElement("span");
+        t.textContent = c.description;
+        r.append(k, t);
+        box.append(r);
+      });
+    });
   }
   addEventListener("hashchange", route);
   $("navNotes").onclick = function () {
@@ -48,6 +81,13 @@
   };
   $("navSettings").onclick = function () {
     location.hash = "settings";
+  };
+  $("gKeysEdit").onclick = function (e) {
+    e.preventDefault();
+    chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+  };
+  $("navGuides").onclick = function () {
+    location.hash = "guides";
   };
   route();
   $("verTop").textContent = "v" + chrome.runtime.getManifest().version;
@@ -88,19 +128,7 @@
   function kind(n) {
     return n.hl ? "Highlight" : n.anchor ? "Element" : "Free";
   }
-  /**
-   * Short display form of a URL: host + path + query.
-   * @param {string} url - page URL
-   * @returns {string}
-   */
-  function path(url) {
-    try {
-      var u = new URL(url);
-      return u.hostname.replace(/^www\./, "") + (u.pathname.length > 1 ? u.pathname : "") + u.search;
-    } catch (e) {
-      return url;
-    }
-  }
+
 
   /**
    * Flat list of {page, note, i}.
@@ -153,36 +181,133 @@
   }
 
   /**
+   * Does a note carry a filter tag?
+   * @param {Object} n - note
+   * @param {string} t - "urgent" | "hl" | "links"
+   * @returns {boolean}
+   */
+  function hasTag(n, t) {
+    if (t === "urgent") return n.pri === "urgent";
+    if (t === "hl") return !!n.hl;
+    if (t === "links") return !!PN.links(n.text).length;
+    return true;
+  }
+  /**
    * Checks an entry against the current filters and search text.
    * @param {Object} e - { page, note, i } entry
    * @param {string} q - lowercase search text
+   * @param {Object} [f] - { status, tags } to test instead of the current ones (used for option counts)
    * @returns {boolean}
    */
-  function matches(e, q) {
+  function matches(e, q, f) {
     var n = e.note;
+    f = f || state;
     if (state.color && n.color !== state.color) return false;
     if (state.site && PN.host(e.page.url) !== state.site) return false;
-    if (state.tab === "open" && n.done) return false;
-    if (state.tab === "done" && !n.done) return false;
-    if (state.tab === "urgent" && n.pri !== "urgent") return false;
-    if (state.tab === "hl" && !n.hl) return false;
-    if (state.tab === "links" && !PN.links(n.text).length) return false;
+    if (f.status === "open" && n.done) return false;
+    if (f.status === "done" && !n.done) return false;
+    for (var k = 0; k < f.tags.length; k++) if (!hasTag(n, f.tags[k])) return false;
     if (!q) return true;
     return (n.text + " " + (n.quote || "") + " " + (n.hl ? n.hl.text : "") + " " + e.page.title + " " + e.page.url).toLowerCase().indexOf(q) > -1;
   }
 
   // ---------- card ----------
   /**
-   * Builds one note card: snapshot, status switch, text, page row and actions.
-   * @param {Object} e - { page, note, i } entry
-   * @param {Object} shots - storage snapshot holding the note screenshots (PN.SHOT + id)
+   * Short site label for the card corner: "www.guetix.com" -> "guetix", "news.ycombinator.com" -> "ycombinator", "bbc.co.uk" -> "bbc".
+   * @param {string} host
+   * @returns {string}
+   */
+  function siteShort(host) {
+    var parts = String(host || "").replace(/^www\./, "").split(".");
+    if (parts.length < 2) return parts[0] || "";
+    var i = parts.length - 2;
+    if (parts.length > 2 && parts[i].length <= 3 && /^(co|com|org|net|gov|ac|edu)$/.test(parts[i])) i--; // bbc.co.uk
+    var n = parts[i];
+    return n.length > 14 ? n.slice(0, 13) + "…" : n;
+  }
+  // ---------- views: sticky (default) · glass · preview · timeline · board ----------
+  var VIEWS = ["sticky", "glass", "preview", "timeline", "board"];
+  var VCLS = { sticky: "vk", glass: "vf", preview: "vg", timeline: "vh", board: "vb" };
+  state.view = "sticky";
+  var dragId = null; // id of the note being dragged on the board
+  /**
+   * Translated UI label (i18n.js), falling back to the key.
+   * @param {string} k - i18n key
+   * @returns {string}
+   */
+  function tr(k) {
+    return PN.t ? PN.t(k) : k;
+  }
+  // action icons (static markup only)
+  var AI = {
+    "a-open": '<path d="M9 3h4v4M13 3 7.5 8.5M11.5 9.5V13h-8V5H7"/>',
+    "a-done": '<path d="m3.5 8.5 3 3 6-7"/>',
+    "a-reopen": '<path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5V5h2.5"/>',
+    "a-link": '<path d="M6.7 9.3 9.3 6.7M5.6 7.5 4 9.1a2.3 2.3 0 0 0 3.2 3.2l1.6-1.6M10.4 8.5 12 6.9a2.3 2.3 0 0 0-3.2-3.2L7.2 5.3"/>',
+    "a-edit": '<path d="M10.5 3 13 5.5 6 12.5H3.5V10z"/>',
+    "a-del": '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
+  };
+  /**
+   * Round site icon: the favicon, or the first letter of the site when there is none.
+   * @param {Object} p - the page
    * @returns {HTMLElement}
    */
-  function card(e, shots) {
-    var p = e.page;
+  function fav(p) {
+    var letter = (siteShort(PN.host(p.url)) || "?").charAt(0).toUpperCase();
+    var f = h("span", "fav");
+    if (!p.favicon) {
+      f.textContent = letter;
+      return f;
+    }
+    var im = h("img");
+    im.alt = "";
+    im.src = p.favicon;
+    im.onerror = function () {
+      im.remove();
+      f.textContent = letter;
+    };
+    f.append(im);
+    return f;
+  }
+  /**
+   * Adds the status / urgent / highlight pills of a note to a box.
+   * @param {Object} n - the note
+   * @param {HTMLElement} box - where to add them
+   * @param {boolean} [noStatus] - skip the Open / Done pill (board columns already say it)
+   */
+  function pills(n, box, noStatus) {
+    if (n.pri === "urgent") box.append(h("span", "npill np-r", tr("urgent")));
+    if (!noStatus) box.append(h("span", "npill " + (n.done ? "np-g" : "np-o"), tr(n.done ? "done" : "open")));
+    if (n.hl) box.append(h("span", "npill np-y", tr("hl")));
+  }
+  /**
+   * Page title link that opens the page at the note.
+   * @param {Object} e - { page, note, i } entry
+   * @param {string} cls - class name
+   * @returns {HTMLElement}
+   */
+  function pageLink(e, cls) {
+    var a = h("a", cls, e.page.title || PN.host(e.page.url));
+    a.href = PN.noteLink(e.page.url, e.note.id);
+    a.title = e.page.url;
+    a.onclick = function (ev) {
+      ev.preventDefault();
+      open(e.page, e.note);
+    };
+    return a;
+  }
+  /**
+   * Card shell shared by every view: note colour, done / urgent state, select checkbox + select-mode click.
+   * @param {Object} e - { page, note, i } entry
+   * @returns {HTMLElement}
+   */
+  function shell(e) {
     var n = e.note;
-    var c = h("article", "card");
+    var c = h("article", "nc");
     c.style.setProperty("--c", n.color);
+    c.setAttribute("data-id", n.id);
+    if (n.done) c.setAttribute("data-done", "");
+    if (n.pri === "urgent") c.classList.add("urgent");
     var pk = h("span", "pick");
     pk.setAttribute("role", "checkbox");
     pk.setAttribute("aria-checked", String(!!picked[n.id]));
@@ -204,147 +329,53 @@
       },
       true,
     );
-    if (n.done) c.setAttribute("data-done", "");
-    if (n.pri === "urgent") c.classList.add("urgent");
-    // one small type tag next to the status (the site is in the page row below)
-    var kindChip = n.hl ? h("span", "chip y", "▍Highlight") : n.anchor ? h("span", "chip b", "◎ Element") : null;
-
-    var shot = h("a", "shot");
-    shot.href = PN.noteLink(p.url, n.id);
-    shot.title = "Open the page at this note";
-    shot.onclick = function (ev) {
-      ev.preventDefault();
-      open(p, n);
-    };
-    var img = shots[PN.SHOT + n.id];
-    if (img) {
-      var im = h("img", "snap");
-      im.alt = "Where this note sits on " + PN.host(p.url);
-      im.loading = "lazy";
-      im.src = img;
-      shot.appendChild(im);
-    } else {
-      shot.classList.add("noimg");
-      var ph = h("div", "ph");
-      var fav = h("img");
-      fav.alt = "";
-      if (p.favicon) fav.src = p.favicon;
-      else fav.style.display = "none";
-      fav.onerror = function () {
-        fav.style.display = "none";
-      };
-      // no snapshot: the slim colored header only carries the tags (the page title is in the row below)
-    }
-    var paper = h("span", "paper");
-    paper.style.background = n.color;
-    shot.append(paper, h("span", "chip dark open", "Open ↗"));
-    if (img) c.appendChild(shot); // no snapshot → no empty header, the colour strip on top is enough
-
-    var content = h("div", "content");
-    var stbar = h("div", "stbar");
-    // status: a two-option switch [Open | Done] — the filled one is the current status
-    var st = h("div", "seg2");
-    st.setAttribute("role", "radiogroup");
-    st.setAttribute("aria-label", "Status");
-    [["open", "Open"], ["done", "✓ Done"]].forEach(function (o) {
-      var b = h("button", "s-" + o[0], o[1]);
-      b.type = "button";
-      b.setAttribute("role", "radio");
-      var on = (o[0] === "done") === !!n.done;
-      b.setAttribute("aria-checked", String(on));
-      b.title = on ? "Current status" : o[0] === "done" ? "Mark as done" : "Reopen";
-      b.onclick = function () {
-        if (on) return;
-        n.done = o[0] === "done"; // status change keeps the date → the list order stays the same
-        savePage(p);
-        say(n.done ? "Marked as done" : "Reopened");
-      };
-      st.append(b);
-    });
-    stbar.append(st);
-    if (kindChip) stbar.append(kindChip);
-    if (n.pri === "urgent") c.appendChild(h("span", "ubadge", "! URGENT"));
-    stbar.append(h("small", "", PN.when(n.updatedAt || n.createdAt)));
-    content.appendChild(stbar);
-    var txt = h("div", "txt", n.text.trim() || "(empty note)"); // plain, static text — edit with the Edit button
-    content.appendChild(txt);
-    if (n.hl || n.quote) {
-      var q = h("div", "q");
-      q.appendChild(PN.rich((n.hl ? n.hl.text : "on " + n.quote).replace(/\s+/g, " ").trim(), state.q));
-      content.appendChild(q);
-    }
-    c.appendChild(content);
-
-    var pg = h("div", "pg");
-    var pa = h("a");
-    pa.href = p.url;
-    pa.target = "_blank";
-    pa.rel = "noopener";
-    pa.title = p.url;
-    var fv = h("img");
-    fv.alt = "";
-    if (p.favicon) fv.src = p.favicon;
-    else fv.style.display = "none";
-    fv.onerror = function () {
-      fv.style.display = "none";
-    };
-    var pt = h("span");
-    pt.append(h("b", "", p.title || PN.host(p.url)), h("small", "", path(p.url)));
-    pa.append(fv, pt);
-    var go = h("button", "ico", "→");
-    go.type = "button";
-    go.title = "Show this note on its page";
-    go.setAttribute("aria-label", "Show this note on its page");
-    go.onclick = function () {
-      open(p, n);
-    };
-    pg.append(pa, go);
-    c.appendChild(pg);
-
+    return c;
+  }
+  /**
+   * Hover actions: open, done / reopen, copy link, edit, delete.
+   * @param {HTMLElement} c - the card
+   * @param {Object} e - { page, note, i } entry
+   */
+  function actions(c, e) {
+    var p = e.page;
+    var n = e.note;
     var acts = h("div", "acts");
-    var AI = {
-      "a-link": '<path d="M6.7 9.3 9.3 6.7M5.6 7.5 4 9.1a2.3 2.3 0 0 0 3.2 3.2l1.6-1.6M10.4 8.5 12 6.9a2.3 2.3 0 0 0-3.2-3.2L7.2 5.3"/>',
-      "a-edit": '<path d="M10.5 3 13 5.5 6 12.5H3.5V10z"/>',
-      "a-del": '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
-    };
-    /**
-     * Adds an action button to the card.
-     * @param {string} label - button text
-     * @param {Function} fn - click handler
-     * @param {boolean|null} pressed - aria-pressed value, or null
-     * @param {string} cls - class, also the AI icon key
-     * @returns {HTMLElement}
-     */
-    var act = function (label, fn, pressed, cls) {
-      var b = h("button", cls || "");
-      b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + (AI[cls] || "") + "</svg>"); // static markup only
-      b.append(label);
+    var act = function (key, cls, fn) {
+      var b = h("button", cls);
       b.type = "button";
-      if (pressed != null) b.setAttribute("aria-pressed", String(pressed));
+      b.title = tr(key);
+      b.setAttribute("aria-label", tr(key));
+      b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + AI[cls] + "</svg>"); // static markup only
       b.onclick = fn;
       acts.appendChild(b);
       return b;
     };
-    var cl = act("Copy link", function () {
+    act("vwOpen", "a-open", function () {
+      open(p, n);
+    });
+    act(n.done ? "vwReopen" : "vwDone", n.done ? "a-reopen" : "a-done", function () {
+      n.done = !n.done; // status change keeps the date → the list order stays the same
+      savePage(p);
+      say(n.done ? "Marked as done" : "Reopened");
+    });
+    var cl = act("vwCopy", "a-link", function () {
       navigator.clipboard.writeText(PN.noteLink(p.url, n.id)).then(
         function () {
           cl.classList.add("ok");
-          cl.lastChild.textContent = "\u2713 Copied";
           say("Link to this note copied");
           setTimeout(function () {
             cl.classList.remove("ok");
-            cl.lastChild.textContent = "Copy link";
           }, 1600);
         },
         function () {
           say("Couldn't copy - clipboard blocked");
         },
       );
-    }, null, "a-link");
-    act("Edit", function () {
+    });
+    act("vwEdit", "a-edit", function () {
       openEditor(p, n);
-    }, null, "a-edit");
-    act("Delete", function () {
+    });
+    act("vwDel", "a-del", function () {
       askDelete(1, function () {
         p.notes = p.notes.filter(function (x) {
           return x.id !== n.id;
@@ -353,9 +384,243 @@
         savePage(p);
         say("Note deleted");
       });
-    }, null, "a-del");
+    });
     c.appendChild(acts);
+  }
+  /**
+   * Top row: site icon + short name · time.
+   * @param {Object} e - { page, note, i } entry
+   * @returns {HTMLElement}
+   */
+  function topRow(e) {
+    var host = PN.host(e.page.url);
+    var top = h("div", "ntop");
+    var nm = h("span", "nm", siteShort(host));
+    nm.title = host;
+    top.append(fav(e.page), nm, h("span", "k", PN.when(e.note.updatedAt || e.note.createdAt)));
+    return top;
+  }
+  /**
+   * Grid card for the sticky, glass and preview views.
+   * @param {Object} e - { page, note, i } entry
+   * @param {Object} shots - storage snapshot holding the note screenshots (PN.SHOT + id)
+   * @param {string} view - "sticky" | "glass" | "preview"
+   * @returns {HTMLElement}
+   */
+  function noteCard(e, shots, view) {
+    var p = e.page;
+    var n = e.note;
+    var c = shell(e);
+    var txt = h("div", "t", n.text.trim() || "(empty note)");
+    var bot = h("div", "bot");
+    pills(n, bot);
+    bot.append(pageLink(e, "pgt"));
+    if (view === "preview") {
+      // where the note sits: the saved snapshot, else a drawn mini page with the note on it
+      var sh = h("a", "sh");
+      sh.href = PN.noteLink(p.url, n.id);
+      sh.title = "Open the page at this note";
+      sh.setAttribute("aria-label", "Open the page at this note");
+      sh.onclick = function (ev) {
+        ev.preventDefault();
+        open(p, n);
+      };
+      var img = shots[PN.SHOT + n.id];
+      if (img) {
+        var im = h("img");
+        im.alt = "Where this note sits on " + PN.host(p.url);
+        im.loading = "lazy";
+        im.src = img;
+        sh.append(im, h("span", "mk"));
+      } else {
+        [[16, 12], [28, 34], [104, 12], [116, 26]].forEach(function (x) {
+          var ln = h("i");
+          ln.style.top = x[0] + "px";
+          ln.style.insetInlineEnd = x[1] + "px";
+          sh.append(ln);
+        });
+        var b = h("b");
+        b.style.top = 40 + (Math.abs(n.y || 0) % 34) + "px";
+        b.style.insetInlineStart = 16 + (Math.abs(n.x || 0) % 18) + "px";
+        sh.append(b);
+      }
+      var bd = h("div", "bd");
+      bd.append(topRow(e), txt, bot);
+      c.append(sh, bd);
+    } else c.append(topRow(e), txt, bot);
+    actions(c, e);
     return c;
+  }
+  /**
+   * Timeline row: text, site · page · time, pills + open arrow.
+   * @param {Object} e - { page, note, i } entry
+   * @returns {HTMLElement}
+   */
+  function rowCard(e) {
+    var p = e.page;
+    var n = e.note;
+    var c = shell(e);
+    var s = h("div", "s");
+    var host = PN.host(p.url);
+    var nm = h("span", "nm", siteShort(host));
+    nm.title = host;
+    s.append(fav(p), nm, h("span", "sep", "·"), pageLink(e, "pgt"), h("span", "sep", "·"), h("span", "k", PN.when(n.updatedAt || n.createdAt)));
+    var r = h("div", "r");
+    pills(n, r);
+    var go = h("button", "go");
+    go.type = "button";
+    go.title = tr("vwOpen");
+    go.setAttribute("aria-label", tr("vwOpen"));
+    go.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>'); // static markup only
+    go.onclick = function () {
+      open(p, n);
+    };
+    r.append(go);
+    c.append(h("div", "t", n.text.trim() || "(empty note)"), s, r);
+    actions(c, e);
+    return c;
+  }
+  /**
+   * Day heading for the timeline: Today, Yesterday, a weekday this week, else the date (UI language).
+   * @param {number} ts - timestamp
+   * @returns {string}
+   */
+  function dayLabel(ts) {
+    var d = new Date(ts || 0);
+    var t0 = new Date();
+    t0.setHours(0, 0, 0, 0);
+    var d0 = new Date(d);
+    d0.setHours(0, 0, 0, 0);
+    var diff = Math.round((t0 - d0) / 864e5);
+    if (diff === 0) return tr("vwToday");
+    if (diff === 1) return tr("vwYesterday");
+    var o = diff > 1 && diff < 7 ? { weekday: "long" } : { weekday: "short", day: "numeric", month: "long" };
+    if (d.getFullYear() !== t0.getFullYear()) o.year = "numeric";
+    try {
+      return d.toLocaleDateString(PN.lang || undefined, o);
+    } catch {
+      return d.toDateString();
+    }
+  }
+  /**
+   * Timeline: notes grouped by day (by site when sorted by site), in the current sort order.
+   * @param {HTMLElement} grid - container
+   * @param {Array<Object>} list - sorted entries
+   */
+  function timeline(grid, list) {
+    var last = null;
+    list.forEach(function (e) {
+      var ts = e.note.createdAt || 0;
+      var key = state.sort === "site" ? PN.host(e.page.url) : new Date(ts).toDateString();
+      if (key !== last) {
+        grid.appendChild(h("div", "day", state.sort === "site" ? key : dayLabel(ts)));
+        last = key;
+      }
+      grid.appendChild(rowCard(e));
+    });
+  }
+  /**
+   * Board column of a note.
+   * @param {Object} n - the note
+   * @returns {string} "open" | "urgent" | "done"
+   */
+  function colOf(n) {
+    return n.done ? "done" : n.pri === "urgent" ? "urgent" : "open";
+  }
+  /**
+   * Moves a note to a board column: changes its status with the same save path as the done / urgent toggles.
+   * @param {string} id - note id
+   * @param {string} to - "open" | "urgent" | "done"
+   */
+  function moveTo(id, to) {
+    var e = lastList.filter(function (x) {
+      return x.note.id === id;
+    })[0];
+    if (!e || colOf(e.note) === to) return;
+    var n = e.note;
+    if (to === "done") n.done = true;
+    else {
+      n.done = false;
+      n.pri = to === "urgent" ? "urgent" : "";
+    }
+    savePage(e.page);
+    say(to === "done" ? "Marked as done" : to === "urgent" ? "Marked as urgent" : "Reopened");
+  }
+  /**
+   * Board card: coloured top edge, text, site + time; draggable between columns.
+   * @param {Object} e - { page, note, i } entry
+   * @returns {HTMLElement}
+   */
+  function boardCard(e) {
+    var n = e.note;
+    var c = shell(e);
+    c.draggable = true;
+    c.addEventListener("dragstart", function (ev) {
+      dragId = n.id;
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/plain", n.id);
+      c.classList.add("drag");
+    });
+    c.addEventListener("dragend", function () {
+      dragId = null;
+      c.classList.remove("drag");
+    });
+    var host = PN.host(e.page.url);
+    var s = h("div", "s");
+    var nm = h("span", "nm", siteShort(host));
+    nm.title = host;
+    s.append(fav(e.page), nm, h("span", "k", PN.when(n.updatedAt || n.createdAt)));
+    c.append(h("div", "t", n.text.trim() || "(empty note)"));
+    if (n.hl || (n.done && n.pri === "urgent")) {
+      var pl = h("div", "bot");
+      pills(n, pl, true);
+      c.append(pl);
+    }
+    c.append(s);
+    actions(c, e);
+    return c;
+  }
+  /**
+   * Board: Open · Urgent · Done columns with counts; drop a card on a column to change its status.
+   * @param {HTMLElement} grid - container
+   * @param {Array<Object>} list - sorted entries
+   */
+  function board(grid, list) {
+    [["open", "var(--orange)"], ["urgent", "var(--red)"], ["done", "var(--g)"]].forEach(function (cd) {
+      var items = list.filter(function (e) {
+        return colOf(e.note) === cd[0];
+      });
+      var col = h("section", "col");
+      col.setAttribute("data-col", cd[0]);
+      col.setAttribute("aria-label", tr(cd[0]));
+      var hd = h("header");
+      var dot = h("i");
+      dot.style.background = cd[1];
+      hd.append(dot, tr(cd[0]), h("span", "", String(items.length)));
+      var lst = h("div", "lst");
+      items.forEach(function (e) {
+        lst.appendChild(boardCard(e));
+      });
+      if (!items.length) lst.appendChild(h("div", "drop", tr("vwDrop")));
+      col.append(hd, lst);
+      col.addEventListener("dragover", function (ev) {
+        if (!dragId) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "move";
+        col.classList.add("over");
+      });
+      col.addEventListener("dragleave", function (ev) {
+        if (!col.contains(ev.relatedTarget)) col.classList.remove("over");
+      });
+      col.addEventListener("drop", function (ev) {
+        ev.preventDefault();
+        col.classList.remove("over");
+        var id = dragId || ev.dataTransfer.getData("text/plain");
+        dragId = null;
+        if (id) moveTo(id, cd[0]);
+      });
+      grid.appendChild(col);
+    });
   }
 
   // ---------- editor: the note as a sticky note, like on the page ----------
@@ -467,19 +732,8 @@
     if (sites.indexOf(state.site) < 0) state.site = "";
     sel.value = state.site;
 
-    // live counts per tab (same site / color / search scope)
-    var keep = state.tab;
-    TABS.forEach(function (t) {
-      state.tab = t[0];
-      var c = all.filter(function (e) {
-        return matches(e, q);
-      }).length;
-      tabBtns[t[0]].querySelector("em").textContent = String(c);
-      tabBtns[t[0]].classList.toggle("zero", !c && t[0] !== "all");
-      tabBtns[t[0]].hidden = t[0] === "urgent" && !c && keep !== "urgent";
-    });
-    state.tab = keep;
-    $("clearF").hidden = !(state.site || state.color || q || state.tab !== "all");
+    paintFilter(all, q);
+    $("clearF").hidden = !(state.site || state.color || q || fltActive());
     var list = all.filter(function (e) {
       return matches(e, q);
     });
@@ -493,11 +747,12 @@
     $("shown").append(h("b", "", PN.pad(list.length)), " of " + PN.pad(all.length) + " notes");
     var grid = $("grid");
     grid.textContent = "";
+    grid.className = "grid " + VCLS[state.view] + (grid.classList.contains("swap") ? " swap" : ""); // keep a running fade
     if (!all.length) {
       var w = h("div", "hello");
       w.append(h("span", "mark"), h("h2", "", "Your notes will live here"), h("p", "", "Pin sticky notes on any website — everything you pin shows up in this list."));
       var ol = h("ol");
-      [["Alt+Shift+N", "Open any website and press the shortcut (or use the toolbar icon)."], ["Click", "Click anywhere on the page to pin a note."], ["Alt+Shift+L", "Select text to highlight it with a note."]].forEach(function (x) {
+      [[CMD["place-note"] || "+ Note", "Open any website and press the shortcut (or use the toolbar icon)."], ["Click", "Click anywhere on the page to pin a note."], [CMD["place-highlight"] || "Select", "Select text to highlight it with a note."]].forEach(function (x) {
         var li = h("li");
         li.append(h("kbd", "", x[0]), h("span", "", x[1]));
         ol.append(li);
@@ -512,29 +767,316 @@
     }
     lastList = list;
     var shots = store;
+    if (state.view === "board") return board(grid, list);
+    if (state.view === "timeline") return timeline(grid, list);
     list.forEach(function (e) {
-      grid.appendChild(card(e, shots));
+      grid.appendChild(noteCard(e, shots, state.view));
     });
   }
 
-  // ---------- controls ----------
-  var tabBtns = {}; // tab id -> button
-  TABS.forEach(function (t) {
-    var b = h("button", "tab");
-    if (t[2]) b.appendChild(h("span", "dot " + t[2]));
-    b.append(t[1], h("em", "", "0"));
-    tabBtns[t[0]] = b;
-    b.type = "button";
-    b.setAttribute("aria-pressed", String(t[0] === state.tab));
-    b.onclick = function () {
-      state.tab = t[0];
-      Array.prototype.forEach.call($("tabs").children, function (x) {
-        x.setAttribute("aria-pressed", String(x === b));
-      });
-      render();
-    };
-    $("tabs").appendChild(b);
+  // ---------- view switcher (saved in settings.notesView) ----------
+  var vsw = $("vsw");
+  /** Marks the current view in the switcher; Select is not available on the board. */
+  function paintView() {
+    Array.prototype.forEach.call(vsw.children, function (b) {
+      var on = b.getAttribute("data-v") === state.view;
+      b.setAttribute("aria-checked", String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    var isBoard = state.view === "board";
+    $("selBtn").setAttribute("aria-disabled", String(isBoard));
+    if (isBoard) $("selBtn").title = tr("vwNoSel");
+    else $("selBtn").removeAttribute("title");
+    if (isBoard && selecting) setSelecting(false);
+  }
+  /**
+   * Switches the notes view (with a short fade) and saves it.
+   * @param {string} v - one of VIEWS
+   */
+  function setView(v) {
+    if (VIEWS.indexOf(v) < 0 || v === state.view) return;
+    state.view = v;
+    paintView();
+    render();
+    var g = $("grid");
+    g.classList.remove("swap");
+    void g.offsetWidth; // restart the fade
+    g.classList.add("swap");
+    chrome.storage.local.get("settings", function (r) {
+      var s = (r && r.settings) || {};
+      s.notesView = v; // merge: keep every other setting
+      chrome.storage.local.set({ settings: s });
+    });
+  }
+  $("grid").addEventListener("animationend", function (e) {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove("swap");
   });
+  vsw.onclick = function (e) {
+    var b = e.target.closest("button[data-v]");
+    if (b) setView(b.getAttribute("data-v"));
+  };
+  // arrow keys move between views (radio group)
+  vsw.onkeydown = function (e) {
+    var i = VIEWS.indexOf(state.view);
+    var rtl = document.documentElement.dir === "rtl";
+    var next = { ArrowRight: rtl ? -1 : 1, ArrowDown: 1, ArrowLeft: rtl ? 1 : -1, ArrowUp: -1 }[e.key];
+    if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = VIEWS.length - 1;
+    else if (next) i = (i + next + VIEWS.length) % VIEWS.length;
+    else return;
+    e.preventDefault();
+    setView(VIEWS[i]);
+    vsw.querySelector('[data-v="' + VIEWS[i] + '"]').focus();
+  };
+  paintView();
+
+  // ---------- filter dropdown (status + tags, saved in settings.notesFilter) ----------
+  var fltBtn = $("fltBtn");
+  var fltMenu = $("fltMenu");
+  var fltItems = {}; // "status:open" / "tag:hl" -> menu item
+  var fltLoaded = false; // saved filter restored once, on the first load
+  /** @returns {number} how many filters are on (status other than All + each ticked tag) */
+  function fltCount() {
+    return (state.status !== "all" ? 1 : 0) + state.tags.length;
+  }
+  /** @returns {boolean} true when the dropdown filters anything */
+  function fltActive() {
+    return fltCount() > 0;
+  }
+  /**
+   * Cleans a saved / requested filter: unknown values fall back to "all" / no tags.
+   * @param {Object} f - { status, tags }
+   * @returns {{status: string, tags: string[]}}
+   */
+  function fltClean(f) {
+    f = f || {};
+    var ids = TAGS.map(function (t) { return t[0]; });
+    var st = ["all", "open", "done"].indexOf(f.status) > -1 ? f.status : "all";
+    var tags = Array.isArray(f.tags) ? ids.filter(function (id) { return f.tags.indexOf(id) > -1; }) : [];
+    return { status: st, tags: tags };
+  }
+  /**
+   * Maps an old single "tab" id (all / open / done / urgent / hl / links) to the filter model.
+   * @param {string} tab
+   * @returns {{status: string, tags: string[]}}
+   */
+  function fltFromTab(tab) {
+    if (tab === "open" || tab === "done") return { status: tab, tags: [] };
+    return fltClean({ status: "all", tags: [tab] });
+  }
+  /** Saves the filter into settings.notesFilter (read-modify-write: keeps every other setting). */
+  function saveFilter() {
+    var f = { status: state.status, tags: state.tags.slice() };
+    chrome.storage.local.get("settings", function (r) {
+      var s = (r && r.settings) || {};
+      s.notesFilter = f;
+      chrome.storage.local.set({ settings: s });
+    });
+  }
+  /**
+   * Applies a filter (live), re-renders and saves it.
+   * @param {Object} f - { status, tags }
+   */
+  function setFilter(f) {
+    f = fltClean(f);
+    state.status = f.status;
+    state.tags = f.tags;
+    render();
+    saveFilter();
+  }
+  /**
+   * Builds one menu row: indicator, colored dot, label, count chip.
+   * @param {string} kind - "status" (radio) | "tag" (checkbox)
+   * @param {Array} o - [id, i18n key, dot class]
+   * @returns {HTMLElement}
+   */
+  function fltItem(kind, o) {
+    var it = h("div", "fo");
+    it.setAttribute("role", kind === "status" ? "menuitemradio" : "menuitemcheckbox");
+    it.tabIndex = -1;
+    it.setAttribute("data-k", kind);
+    it.setAttribute("data-v", o[0]);
+    it.append(h("span", "ind"), h("span", "dot " + o[2]), h("span", "fl"), h("em", "", "0"));
+    it.firstChild.setAttribute("aria-hidden", "true");
+    fltItems[kind + ":" + o[0]] = it;
+    return it;
+  }
+  (function buildFilter() {
+    var g1 = h("div", "fg");
+    var g2 = h("div", "fg");
+    [[g1, "fltStatus", "status", STATUSES], [g2, "fltTags", "tag", TAGS]].forEach(function (x) {
+      var hd = h("div", "fh");
+      hd.id = "fltH-" + x[2];
+      hd.setAttribute("data-i18n", x[1]);
+      x[0].setAttribute("role", "group");
+      x[0].setAttribute("aria-labelledby", hd.id);
+      x[0].append(hd);
+      x[3].forEach(function (o) {
+        x[0].append(fltItem(x[2], o));
+      });
+    });
+    var ft = h("div", "ffoot");
+    var cl = h("button", "fx");
+    var ok = h("button", "fok");
+    cl.type = ok.type = "button";
+    cl.id = "fltClear";
+    ok.id = "fltOk";
+    ft.append(cl, ok);
+    fltMenu.append(g1, h("div", "fsep"), g2, ft);
+  })();
+  /**
+   * Paints the dropdown: button label + badge, and each option's checked / count / disabled state.
+   * Counts use the current scope (search + site + color) and answer "what would I get if I picked this":
+   *  - a Status option counts notes in scope with that status AND every ticked tag;
+   *  - a Tag option counts notes in scope with the chosen status AND that one tag (other ticked tags ignored).
+   * Options with 0 look disabled (still shown) unless they are already selected.
+   * @param {Array} all - every entry
+   * @param {string} q - lowercase search text
+   */
+  function paintFilter(all, q) {
+    /** @param {Object} f @returns {number} */
+    function count(f) {
+      var c = 0;
+      for (var i = 0; i < all.length; i++) if (matches(all[i], q, f)) c++;
+      return c;
+    }
+    /** @param {HTMLElement} it @param {string} key @param {number} c @param {boolean} on */
+    function paintItem(it, key, c, on) {
+      it.querySelector(".fl").textContent = tr(key);
+      it.querySelector("em").textContent = String(c);
+      it.setAttribute("aria-checked", String(on));
+      if (!c && !on) it.setAttribute("aria-disabled", "true");
+      else it.removeAttribute("aria-disabled");
+    }
+    STATUSES.forEach(function (o) {
+      paintItem(fltItems["status:" + o[0]], o[1], count({ status: o[0], tags: state.tags }), state.status === o[0]);
+    });
+    TAGS.forEach(function (o) {
+      paintItem(fltItems["tag:" + o[0]], o[1], count({ status: state.status, tags: [o[0]] }), state.tags.indexOf(o[0]) > -1);
+    });
+    Array.prototype.forEach.call(fltMenu.querySelectorAll("[data-i18n]"), function (x) {
+      x.textContent = tr(x.getAttribute("data-i18n"));
+    });
+    $("fltClear").textContent = tr("fltClear");
+    $("fltOk").textContent = tr("fltOk");
+    // label: "All notes" | "Open · Urgent, Highlights"
+    var parts = [];
+    if (state.status !== "all") parts.push(tr(state.status === "open" ? "fltOpen" : "fltDone"));
+    var tl = TAGS.filter(function (o) { return state.tags.indexOf(o[0]) > -1; }).map(function (o) { return tr(o[1]); });
+    if (tl.length) parts.push(tl.join(", "));
+    var n = fltCount();
+    var lbl = parts.length ? parts.join(" · ") : tr("fltAll");
+    $("fltLbl").textContent = lbl;
+    $("fltN").textContent = String(n);
+    $("fltN").hidden = !n;
+    $("fltX").hidden = !n;
+    $("fltX").setAttribute("aria-label", tr("fltReset"));
+    $("fltX").title = tr("fltReset");
+    $("flt").classList.toggle("on", !!n);
+    fltBtn.setAttribute("aria-label", tr("fltLbl") + ": " + lbl);
+    fltBtn.title = lbl;
+  }
+  /** @returns {HTMLElement[]} the menu rows that can take focus (not disabled) */
+  function fltFocusable() {
+    return Array.prototype.filter.call(fltMenu.querySelectorAll(".fo"), function (x) {
+      return x.getAttribute("aria-disabled") !== "true";
+    });
+  }
+  /**
+   * Opens the menu and focuses the selected (or first) option.
+   */
+  function openFilter() {
+    fltMenu.hidden = false;
+    fltBtn.setAttribute("aria-expanded", "true");
+    var list = fltFocusable();
+    var cur = list.filter(function (x) { return x.getAttribute("aria-checked") === "true"; })[0] || list[0];
+    if (cur) cur.focus();
+  }
+  /**
+   * Closes the menu.
+   * @param {boolean} [back] - return focus to the button
+   */
+  function closeFilter(back) {
+    if (fltMenu.hidden) return;
+    fltMenu.hidden = true;
+    fltBtn.setAttribute("aria-expanded", "false");
+    if (back) fltBtn.focus();
+  }
+  /**
+   * Toggles one option (radio for status, checkbox for tags).
+   * @param {HTMLElement} it - menu row
+   */
+  function pickFilter(it) {
+    if (!it || it.getAttribute("aria-disabled") === "true") return;
+    var v = it.getAttribute("data-v");
+    if (it.getAttribute("data-k") === "status") return setFilter({ status: v, tags: state.tags });
+    var tags = state.tags.slice();
+    var i = tags.indexOf(v);
+    if (i > -1) tags.splice(i, 1);
+    else tags.push(v);
+    setFilter({ status: state.status, tags: tags });
+  }
+  fltBtn.onclick = function () {
+    if (fltMenu.hidden) openFilter();
+    else closeFilter(false);
+  };
+  fltBtn.onkeydown = function (e) {
+    if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+      e.preventDefault();
+      openFilter();
+    }
+  };
+  $("fltX").onclick = function (e) {
+    e.stopPropagation(); // clear only, don't toggle the menu
+    setFilter({ status: "all", tags: [] });
+    fltBtn.focus();
+  };
+  fltMenu.onclick = function (e) {
+    var it = e.target.closest(".fo");
+    if (it) {
+      pickFilter(it);
+      it.focus();
+    }
+  };
+  $("fltClear").onclick = function () {
+    setFilter({ status: "all", tags: [] });
+    var first = fltFocusable()[0];
+    if (first) first.focus();
+  };
+  $("fltOk").onclick = function () {
+    closeFilter(true);
+  };
+  fltMenu.onkeydown = function (e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation(); // don't also leave select mode
+      return closeFilter(true);
+    }
+    var it = e.target.closest(".fo");
+    if (!it) return;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      return pickFilter(it);
+    }
+    var list = fltFocusable();
+    var i = list.indexOf(it);
+    if (e.key === "ArrowDown") i = (i + 1) % list.length;
+    else if (e.key === "ArrowUp") i = (i - 1 + list.length) % list.length;
+    else if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = list.length - 1;
+    else return;
+    e.preventDefault();
+    if (list[i]) list[i].focus();
+  };
+  // click outside / focus leaving the dropdown closes it
+  document.addEventListener("mousedown", function (e) {
+    if (!fltMenu.hidden && !$("flt").contains(e.target)) closeFilter(false);
+  });
+  $("flt").addEventListener("focusout", function (e) {
+    if (e.relatedTarget && !$("flt").contains(e.relatedTarget)) closeFilter(false);
+  });
+
+  // ---------- controls ----------
   PN.COLORS.forEach(function (c) {
     var b = h("button", "cf");
     b.type = "button";
@@ -558,11 +1100,10 @@
     state.site = "";
     state.color = null;
     state.q = "";
-    state.tab = "all";
+    state.status = "all";
+    state.tags = [];
+    saveFilter();
     $("q").value = "";
-    Array.prototype.forEach.call($("tabs").children, function (x, i) {
-      x.setAttribute("aria-pressed", String(i === 0));
-    });
     Array.prototype.forEach.call($("colors").children, function (x) {
       x.setAttribute("aria-pressed", "false");
     });
@@ -586,29 +1127,33 @@
   };
   // settings group nav: jump + highlight the group in view
   var snav = $("snav");
+  // settings tabs: "All" or one group at a time (sticky bar under the header)
+  Array.prototype.forEach.call(snav.children, function (x) {
+    x.setAttribute("role", "tab");
+    if (!x.hasAttribute("aria-selected")) x.setAttribute("aria-selected", "false");
+  });
   snav.onclick = function (e) {
     var b = e.target.closest("button[data-to]");
     if (!b) return;
-    var sec = $(b.getAttribute("data-to")).closest("section");
-    sec.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  // highlight the settings group currently in view
-  if (window.IntersectionObserver) {
-    var io = new IntersectionObserver(
-      function (ents) {
-        ents.forEach(function (en) {
-          if (!en.isIntersecting) return;
-          var id = en.target.querySelector("h2").id;
-          Array.prototype.forEach.call(snav.children, function (x) {
-            x.setAttribute("aria-current", String(x.getAttribute("data-to") === id));
-          });
-        });
-      },
-      { rootMargin: "-80px 0px -60% 0px" },
-    );
+    var to = b.getAttribute("data-to");
+    var keep = to === "all" ? null : $(to).closest("section");
     document.querySelectorAll("#vSettings section").forEach(function (sec) {
-      io.observe(sec);
+      sec.classList.toggle("tab-off", !!keep && sec !== keep);
     });
+    Array.prototype.forEach.call(snav.children, function (x) {
+      x.setAttribute("aria-selected", String(x === b));
+    });
+    var top = $("vSettings").getBoundingClientRect().top + scrollY - 70;
+    if (scrollY > top) scrollTo({ top: top, behavior: "smooth" });
+  };
+  // the tab bar sits right under the sticky header, whatever its height
+  var topBar = document.querySelector(".top");
+  if (topBar) {
+    var setTopH = function () {
+      document.documentElement.style.setProperty("--toph", topBar.offsetHeight + "px");
+    };
+    setTopH();
+    addEventListener("resize", setTopH);
   }
   $("sort").onchange = function (e) {
     state.sort = e.target.value;
@@ -727,6 +1272,7 @@
     $("sheet").classList.remove("on");
   }
   $("selBtn").onclick = function () {
+    if (state.view === "board") return say(tr("vwNoSel"));
     setSelecting(!selecting);
   };
   $("selDone").onclick = function () {
@@ -877,9 +1423,24 @@
     chrome.storage.local.get(null, function (s) {
       store = s;
       PN.setDev(s.settings && s.settings.dev); // inspect mode shows its own notes
+      var nv = s.settings && s.settings.notesView;
+      if (nv && VIEWS.indexOf(nv) > -1 && nv !== state.view) {
+        state.view = nv;
+        paintView();
+      }
+      if (!fltLoaded) {
+        fltLoaded = true;
+        // a one-shot ?tab=open|done|urgent|hl|links link wins over the saved filter
+        var tab = new URLSearchParams(location.search).get("tab");
+        var f = tab ? fltFromTab(tab) : fltClean(s.settings && s.settings.notesFilter);
+        state.status = f.status;
+        state.tags = f.tags;
+      }
       render();
     });
   }
   chrome.storage.onChanged.addListener(refresh);
-  refresh();
+  // resolve the UI language first (timeline day names, labels), then load the notes
+  if (PN.initLang) PN.initLang(refresh);
+  else refresh();
 })();
