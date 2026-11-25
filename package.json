@@ -1,6 +1,6 @@
 {
   "name": "guetix-page-notes",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Sticky notes on any website — a Chrome extension (Manifest V3).",
   "license": "MIT",

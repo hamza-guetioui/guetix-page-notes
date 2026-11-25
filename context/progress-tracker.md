@@ -5,7 +5,7 @@
   tutorial media and video tooling. guetix.com keeps only what its website serves: the blog post + its images,
   the tutorial playlist/reel pages with `public/tutorial/page-notes/{recordings,music,posters,voice}`, and the
   downloadable zip `public/extensions/guetix-page-notes.zip` (refresh it from `dist/` after a release).
-- Version **1.4.0** on local branch `feat/popup-redesign` — all redesign work **uncommitted**, awaiting owner review.
+- Version **1.5.0** on `dev` (redesign merged via PRs #5/#6 era work); release = PR `dev` → `main`, then tag `v1.5.0`.
 - Chrome Web Store listing is still on 1.2.0 (upload pending).
 
 ## History carried over from guetix.com
@@ -19,7 +19,7 @@ https://github.com/hamza-guetioui/guetix-page-notes (MIT). Chrome Web Store list
 - Page Notes JSDoc pass + OSS sync-via-PR script — PR #35 into `dev` (`32daa293`, `1f88c706`).
 - Page Notes v1.3.1, narrated tutorial playlist, open source (MIT) — PR #30.
 
-## 1.4.0 redesign (uncommitted) — summary
+## 1.5.0 redesign — summary
 Fluent-style popup (Home/Notes/Sites, stat cards, orange New note, tip only for new users) · dashboard redesign ·
 Guides page · Settings: previews per option, sticky wrapping tabs, Customize (Toolbar + Personal), Appearance,
 orange Export backup · dark mode everywhere · All notes view switcher (5 views) + Filter dropdown · on-page:
