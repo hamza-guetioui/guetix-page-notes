@@ -284,6 +284,7 @@
     return el;
   }
   var CAMERA = "M2.5 5.5A1 1 0 0 1 3.5 4.5h1.8l1-1.5h3.4l1 1.5h1.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1zM8 10.6a2.1 2.1 0 1 0 0-4.2 2.1 2.1 0 0 0 0 4.2z";
+  var EYE = "M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z";
   var EYE_OFF = "M2 2l12 12M6.5 6.6A2 2 0 0 0 9.4 9.5M4.2 4.4C2.5 5.6 1.5 8 1.5 8s2.5 5 6.5 5c1.4 0 2.6-.5 3.6-1.2M7 3.1c.3 0 .7-.1 1-.1 4 0 6.5 5 6.5 5s-.5 1-1.4 2.1";
 
   // ---------- one scene per setting ----------
@@ -421,6 +422,48 @@
           });
           S.pop(note(m.page, "", { left: "52%", top: "18px" }), 1600);
         }
+      },
+    },
+    dockStyle: {
+      cases: [
+        { key: "bar", label: "Bar", caption: "One slim line in the corner: browse, add and hide notes." },
+        { key: "tile", label: "Tile", caption: "A compact card on rows, with a big + Note button." },
+        { key: "orb", label: "Orb", caption: "Just a round button. Hover it: hide notes, + Note and options pop out." },
+      ],
+      play: function (m, S, k) {
+        var tb = h("div", "pv-ds ds-" + k);
+        tb.append(h("span", "pv-mas"));
+        m.page.append(tb);
+        S.slide(tb, 200);
+        S.cursor(S.w * 0.45, 40);
+        var t = 700;
+        var add;
+        if (k === "orb") {
+          // the 3 tools on a quarter circle around the orb (center 25px from the corner), like content.js
+          var items = [
+            ["", 58, 14, EYE],
+            ["add", 42, 42, "M8 3.5v9M3.5 8h9"],
+            ["", 14, 58, "M3 5h10M3 11h10M6 3.5v3M10 9.5v3"],
+          ].map(function (d) {
+            var b = at(h("span", "pv-ob " + d[0]), { right: d[1] + "px", bottom: d[2] + "px" });
+            b.append(icon(d[3]));
+            m.page.append(b);
+            return b;
+          });
+          t = S.move(tb, 500, 650); // just hovering - no click
+          items.forEach(function (b, i) {
+            S.pop(b, t + 60 + i * 70);
+          });
+          add = items[1];
+          t += 450;
+        } else {
+          add = h("span", "pv-add", "+ Note");
+          tb.append(h("span", "pv-nav", "\u2039 1/2 \u203a"), add);
+          for (var i = 0; i < (k === "tile" ? 4 : 3); i++) tb.append(h("i"));
+        }
+        t = S.move(add, t, 600);
+        t = S.click(t + 60);
+        S.pop(note(m.page, "", { left: "30%", top: "22px" }), t + 150);
       },
     },
     resetPos: {

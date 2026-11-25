@@ -274,6 +274,50 @@
     ".dock:has(>.menu.open:last-child) .dk[aria-haspopup]{color:var(--gx-blue);background:var(--gx-tint)}",
     ".dock.down .menu{animation-name:gx-down}",
     "@keyframes gx-down{from{opacity:0;transform:translateY(-6px)}}",
+    // dock styles (settings.dockStyle): bar = default line above; tile = compact multi-row card; orb = round button, tools fan out on hover.
+    // While placing, both fall back to the bar line (the status text needs the width).
+    ".dock.st-tile:not(.collapsed):not(.placing){flex-wrap:wrap;width:208px;row-gap:5px;padding:6px;border-radius:16px}",
+    ".dock.st-tile>.vr{display:none}",
+    ".dock.st-tile>.nav{margin-left:auto}",
+    ".dock.st-tile>.split{flex:1 0 100%;margin:0;border-radius:10px}",
+    ".dock.st-tile .split button{height:38px}",
+    ".dock.st-tile .split .new{flex:1;border-radius:10px 0 0 10px}",
+    ".dock.st-tile .split .caret{width:34px;border-radius:0 10px 10px 0}",
+    ".dock.st-tile>.dk{flex:1 1 0;height:30px;background:var(--gx-raised)}",
+    ".dock.st-tile>.dk:hover{background:var(--gx-hover2)}",
+    // orb: a round logo; hovering it (or keyboard focus, or a click to pin it) fans the tools out in a quarter circle
+    // toward the page (--s start angle, --d direction, per side). Tools: eye / + Note / options.
+    ".dock.st-orb:not(.placing){--s:180deg;--d:1;width:46px;height:46px;padding:0;gap:0;border-radius:50%;justify-content:center}",
+    ".dock.st-orb:not(.placing).left{--s:0deg;--d:-1}.dock.st-orb:not(.placing).down{--d:-1}.dock.st-orb:not(.placing).left.down{--d:1}",
+    ".dock.st-orb:not(.placing)>.vr,.dock.st-orb:not(.placing) .pos{display:none}.dock.st-orb:not(.placing)>.nav,.dock.st-orb:not(.placing)>.split{display:contents}",
+    ".dock.st-orb:not(.placing) .brand{width:46px;height:46px;padding:0;border-radius:50%}.dock.st-orb:not(.placing) .mark{font-size:22px}",
+    ".dock.st-orb:not(.placing) .cnt{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;font-size:10.5px;line-height:18px;box-shadow:0 0 0 2px var(--gx-surface)}",
+    ".dock.st-orb:not(.placing) :is(.new,.caret,.pr,.nx,.dk){position:absolute;left:50%;top:50%;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--gx-surface);color:var(--gx-muted);box-shadow:var(--gx-sh-dock),inset 0 0 0 1px var(--gx-border);opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.4);transition:transform .16s ease-in,opacity .12s}",
+    ".dock.st-orb:not(.placing) .new{width:46px;height:46px;font-size:0;gap:0;background:" + ORANGE_GRAD + ";color:#fff;box-shadow:0 4px 14px rgba(255,91,20,.35),inset 0 0 0 1px rgba(200,60,5,.3)}.dock.st-orb:not(.placing) .new svg{width:19px;height:19px}",
+    ".dock.st-orb:not(.placing) .caret{width:26px;height:26px;background:" + ORANGE + ";color:#fff;box-shadow:0 2px 8px rgba(255,91,20,.3)}",
+    // only the 3 key tools: show/hide notes · + Note · options (the rest lives in the options menu or the shortcuts)
+    ".dock.st-orb:not(.placing) :is(.pr,.nx,.caret,.fd,.cl){display:none}",
+    ".dock.st-orb .eye{--p:0;--r:72px}.dock.st-orb .new{--p:.5;--r:72px}.dock.st-orb .mo{--p:1;--r:72px}",
+    ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) :is(.new,.caret,.pr,.nx,.dk){opacity:1;pointer-events:auto;transform:translate(-50%,-50%) rotate(calc(var(--s) + var(--d) * var(--p) * 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--s) + var(--d) * var(--p) * 90deg)));transition:transform .34s cubic-bezier(.3,1.35,.5,1) calc(var(--p) * 70ms),opacity .15s calc(var(--p) * 70ms)}",
+    // hover: the tool grows a little, lifts, gets a blue ring + tint (+ Note glows warmer); quick, no stagger delay
+    ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) :is(.new,.dk):hover{transform:translate(-50%,-50%) rotate(calc(var(--s) + var(--d) * var(--p) * 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--s) + var(--d) * var(--p) * 90deg))) translateY(-2px) scale(1.14);transition:transform .2s cubic-bezier(.3,1.5,.5,1),background .15s,color .15s,box-shadow .2s}",
+    ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .dk:hover{background:var(--gx-tint);color:var(--gx-blue);box-shadow:0 6px 16px rgba(27,94,247,.22),inset 0 0 0 1.5px rgba(27,94,247,.45)}.dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .eye.off{background:var(--gx-tint);color:var(--gx-blue)}",
+    ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .new:hover{box-shadow:0 8px 22px rgba(255,91,20,.5),0 0 0 4px rgba(255,91,20,.18)}.dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .dk:active,.dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .new:active{filter:brightness(.95)}",
+    ":host([data-theme=dark]) .dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .dk:hover{box-shadow:0 6px 16px rgba(0,0,0,.4),inset 0 0 0 1.5px rgba(110,152,255,.55)}",
+    // invisible disc under the open orb: the pointer can cross the gaps between tools without closing it
+    ".dock.st-orb:not(.placing)::before{content:'';position:absolute;left:50%;top:50%;width:250px;height:250px;margin:-125px 0 0 -125px;border-radius:50%;pointer-events:none}.dock.st-orb:not(.placing).hot::before{pointer-events:auto}",
+    ".dock.st-orb .menu{bottom:0;right:calc(100% + 80px)}.dock.st-orb.down .menu{top:0;bottom:auto}.dock.st-orb.left .menu{left:calc(100% + 80px);right:auto}",
+    // orb menu: a rounded quick panel - actions as a 2x2 grid of round icon tiles, springing out of the orb
+    ".dock.st-orb .menu{width:236px;min-width:0;flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px;border-radius:22px;transform-origin:right bottom;animation:gx-orb .26s cubic-bezier(.3,1.35,.5,1)}",
+    ".dock.st-orb.left .menu{transform-origin:left bottom}.dock.st-orb.down .menu{transform-origin:right top;animation-name:gx-orb}.dock.st-orb.left.down .menu{transform-origin:left top}",
+    "@keyframes gx-orb{from{opacity:0;transform:scale(.55)}}",
+    ".dock.st-orb .menu .mh{flex:1 0 100%;padding:2px 4px 2px}.dock.st-orb .menu hr{flex:1 0 100%;margin:4px 0}.dock.st-orb .menu .mf{flex:1 0 100%}",
+    ".dock.st-orb .menu button{flex:1 0 calc(50% - 3px);box-sizing:border-box;flex-direction:column;justify-content:center;gap:7px;min-height:0;padding:12px 6px 10px;border-radius:16px;background:var(--gx-raised);text-align:center}",
+    ".dock.st-orb .menu button:hover{background:var(--gx-hover2)}.dock.st-orb .menu .danger{background:var(--gx-danger-bg)}.dock.st-orb .menu .danger:hover{background:var(--gx-danger-h)}",
+    ".dock.st-orb .menu .mi{width:34px;height:34px;border-radius:50%;background:var(--gx-surface);box-shadow:0 1px 3px rgba(17,24,39,.08)}.dock.st-orb .menu .mi svg{width:16px;height:16px}",
+    ".dock.st-orb .menu .mt{align-items:center}.dock.st-orb .menu .mt b{font-size:12px;white-space:normal}.dock.st-orb .menu .mt small{display:none}",
+    ".dock.st-orb .menu .mf label{border-radius:14px}",
+    "@media (prefers-reduced-motion:reduce){.dock.st-orb :is(.new,.caret,.pr,.nx,.dk){transition:none!important}.dock.st-orb .menu{animation:none}}",
     ".hint::after{display:none}",
     "@keyframes dock-in{from{opacity:0;transform:translateY(14px)}}",
     // placing ghost: a see-through preview note that follows the pointer (free notes)
@@ -345,6 +389,7 @@
 
   var SVG = {
     note: '<path d="M4 3h12v9l-4 4H4z"/><path d="M12 16v-4h4"/>',
+    plus: '<path d="M10 4v12M4 10h12"/>',
     el: '<rect x="3" y="3" width="14" height="14" rx="2" stroke-dasharray="3 2.5"/><circle cx="10" cy="10" r="2"/>',
     hl: '<path d="M3 17h14M6 13.5l6.5-7.5 3 2.6-6.5 7.4H6z"/>',
     trash: '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/>',
@@ -1994,6 +2039,22 @@
     var root = el("div", "dock");
     root.setAttribute("role", "toolbar");
     root.setAttribute("aria-label", "Page Notes");
+    // orb: "hot" while the pointer is over it, its tools, the disc between them or its menu; closes (menu too)
+    // a moment after the pointer leaves - no click needed. Touch has no hover: a tap on the orb pins it (.open).
+    var leaveT = 0;
+    root.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "touch") return;
+      clearTimeout(leaveT);
+      root.classList.add("hot");
+    });
+    root.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "touch") return;
+      clearTimeout(leaveT);
+      leaveT = setTimeout(function () {
+        root.classList.remove("hot", "open");
+        if (settings.dockStyle === "orb") closeMenus(); // the bar keeps its menus until a click outside
+      }, 300); // grace: brief slips outside the area don't close it
+    });
     var brand = el("button", "brand");
     brand.type = "button";
     brand.title = "Page Notes";
@@ -2001,6 +2062,7 @@
     brand.append(el("span", "mark"), cnt);
     brand.onclick = function () {
       if (brand._dragged) return (brand._dragged = false); // that was a move, not a click
+      if (settings.dockStyle === "orb") return root.classList.toggle("open"); // pin the orb open (touch / no hover)
       if (dockResting) dockResting = false; // just wake it up; the saved fold state stays as it was
       else if ((settings.dock || "auto") === "mini") dockExpanded = !dockExpanded;
       else setSettings({ dockFolded: !settings.dockFolded });
@@ -2066,12 +2128,12 @@
     split.append(add, caret);
 
     var nav = el("div", "nav");
-    var prev = el("button");
+    var prev = el("button", "pr");
     prev.type = "button";
     prev.title = "Previous note";
     prev.append(svg("left", 12));
     var pos = el("span", "pos");
-    var next = el("button");
+    var next = el("button", "nx");
     next.type = "button";
     next.title = "Next note";
     next.append(svg("right", 12));
@@ -2099,12 +2161,12 @@
     cancel.onclick = stopPlacing;
     status.append(el("span", "sdot"), stLabel, help, cancel);
 
-    var more = el("button", "dk");
+    var more = el("button", "dk mo");
     more.type = "button";
     more.title = "Options";
     more.setAttribute("aria-haspopup", "menu");
     more.append(svg("more"));
-    var fold = el("button", "dk");
+    var fold = el("button", "dk fd");
     fold.type = "button";
     fold.title = "Minimize all notes on this page";
     fold.setAttribute("aria-label", fold.title);
@@ -2122,7 +2184,7 @@
     eye.onclick = function () {
       setPageHidden(!pageHidden());
     };
-    var close = el("button", "dk");
+    var close = el("button", "dk cl");
     close.type = "button";
     close.title = "Close the toolbar (your notes stay)";
     close.append(svg("x"));
@@ -2257,7 +2319,7 @@
     var p = settings.dockPos || {};
     var b = isFinite(p.b) ? p.b : DOCK_GAP;
     var side = dockSide();
-    dock.root.style.bottom = Math.max(4, Math.min(b, innerHeight - 44)) + "px";
+    dock.root.style.bottom = Math.max(4, Math.min(b, innerHeight - (dock.root.offsetHeight || 40) - 4)) + "px"; // tall styles stay on screen
     dock.root.style.left = side === "l" ? DOCK_GAP + "px" : "auto";
     dock.root.style.right = side === "r" ? DOCK_GAP + "px" : "auto";
     dock.root.classList.toggle("left", side === "l");
@@ -2341,7 +2403,7 @@
   document.addEventListener(
     "pointerdown",
     function (e) {
-      if (dock && e.target !== host) closeMenus(); // clicks inside our (closed) shadow root are retargeted to the host
+      if (dock && e.target !== host) closeMenus(), dock.root.classList.remove("open"); // clicks inside our (closed) shadow root are retargeted to the host
     },
     true,
   );
@@ -2421,7 +2483,10 @@
     var show = dm !== "off" && visible && (placing || (!closed && (dm === "mini" || n > 0 || dockWanted)));
     dock.root.style.display = show ? "flex" : "none";
     var folded = (dm === "mini" ? !dockExpanded : !!settings.dockFolded) || dockResting;
-    dock.root.classList.toggle("collapsed", folded && !placing);
+    var orb = settings.dockStyle === "orb";
+    dock.root.classList.toggle("collapsed", folded && !placing && !orb); // the orb is always small; hover opens it
+    dock.root.classList.toggle("st-tile", settings.dockStyle === "tile"); // bar (default) | tile | rail
+    dock.root.classList.toggle("st-orb", orb);
     placeDock();
     dock.cnt.textContent = String(n);
     dock.cnt.classList.toggle("zero", !n);
@@ -2436,7 +2501,7 @@
     fixed.classList.toggle("notips", !tipsOn()); // tips off: tools + actions only, no guidance text
     var ty = curType();
     dock.add.textContent = "";
-    dock.add.append(svg(TYPES[ty][0]), TYPES[ty][1]); // label only - the shortcut is in the tooltip
+    dock.add.append(svg(orb ? "plus" : TYPES[ty][0]), TYPES[ty][1]); // orb: a plain + (the label is hidden there) // label only - the shortcut is in the tooltip
     dock.add.title = (ty === "el" ? "Click, then click an element" : ty === "hl" ? "Click, then select text" : "Click, then click the page - or drag me onto the page") + keyHint("place-note");
     Object.keys(dock.typeItems).forEach(function (k) {
       dock.typeItems[k].setAttribute("aria-checked", String(k === ty));
