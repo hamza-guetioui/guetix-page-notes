@@ -781,6 +781,17 @@
       .pv-tb.mini{padding:0 4px}
       .pv-mas{position:relative;flex:none;width:19px;height:19px;font-size:19px;border-radius:.28em;background:linear-gradient(160deg,#ff7a2e,#ff5b14 55%,#f04f0a);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
       .pv-add{height:19px;padding:0 9px;border-radius:999px;background:linear-gradient(180deg,#ff8a3d,#ff5b14);color:#fff;font:700 9.5px/19px var(--sans);white-space:nowrap}
+      /* Toolbar style preview: bar · tile · orb (+ the orb's 3 pop-out tools) */
+      .pv-ds{position:absolute;right:10px;bottom:10px;z-index:3;display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--card);box-shadow:var(--sh-2)}
+      .pv-ds.ds-bar{height:28px;padding:0 5px;border-radius:9px}
+      .pv-ds.ds-tile{flex-wrap:wrap;width:104px;padding:5px;border-radius:11px;gap:4px}
+      .pv-ds.ds-tile .pv-nav{margin-left:auto}.pv-ds.ds-tile .pv-add{flex:1 0 100%;text-align:center;border-radius:6px}
+      .pv-ds.ds-orb{width:30px;height:30px;padding:0;border-radius:50%;justify-content:center}
+      .pv-ds i{display:block;width:12px;height:12px;border-radius:4px;background:var(--line)}.pv-ds.ds-tile i{flex:1;height:14px}
+      .pv-nav{font:600 8.5px/1 var(--sans);color:var(--muted);white-space:nowrap}
+      .pv-ob{position:absolute;z-index:3;display:grid;place-items:center;width:22px;height:22px;box-sizing:border-box;border:1px solid var(--line);border-radius:50%;background:var(--card);box-shadow:var(--sh-2);color:var(--muted)}
+      .pv-ob.add{width:28px;height:28px;border:0;background:linear-gradient(180deg,#ff8a3d,#ff5b14);color:#fff}
+      .pv-ob svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
       .pv-cur{position:absolute;left:0;top:0;z-index:9;width:14px;height:18px;transform-origin:0 0;pointer-events:none;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.3))}
       .frame .pv-cur svg{display:block;width:14px;height:18px;fill:#171a22;stroke:#fff;stroke-width:1.2;stroke-linejoin:round}
       .pv-ring{position:absolute;z-index:8;width:22px;height:22px;margin:-11px 0 0 -11px;border:2px solid var(--ac);border-radius:50%;opacity:0;pointer-events:none}
@@ -964,7 +975,7 @@
       [data-theme=dark] .pv-ln.h,[data-theme=dark] .pv-thumb i{background:var(--line3)}
       [data-theme=dark] .pv-thumb i.n{background:#fde68a}
       [data-theme=dark] .pv-block{background:var(--raised);border-color:var(--line)}
-      [data-theme=dark] .pv-tb,[data-theme=dark] .pv-badge,[data-theme=dark] .pv-tip,[data-theme=dark] .pv-tip::after,[data-theme=dark] .pv-guide,[data-theme=dark] .pv-q,[data-theme=dark] .pv-chip,[data-theme=dark] .pv-card{background:var(--raised);border-color:var(--line3)}
+      [data-theme=dark] .pv-tb,[data-theme=dark] .pv-ds,[data-theme=dark] .pv-ob:not(.add),[data-theme=dark] .pv-badge,[data-theme=dark] .pv-tip,[data-theme=dark] .pv-tip::after,[data-theme=dark] .pv-guide,[data-theme=dark] .pv-q,[data-theme=dark] .pv-chip,[data-theme=dark] .pv-card{background:var(--raised);border-color:var(--line3)}
       [data-theme=dark] .pv-trash{border-color:rgba(244,124,124,.5);background:var(--r-tint)}
       [data-theme=dark] .pv-flash{background:rgba(255,255,255,.55)}
       [data-theme=dark] .pv-note.ghost{border-color:#f2c94c;background:rgba(253,230,138,.26)}
@@ -1087,6 +1098,12 @@
             <button type="button" class="opt" data-val="auto"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="9.5" width="12" height="4" rx="1"/><path d="M8 2v5M5.5 4.5 8 7l2.5-2.5"/></svg></span><b data-i18n="dockAuto"></b><small data-i18n="dockAutoD"></small></button>
             <button type="button" class="opt" data-val="mini"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="9" y="9" width="5" height="5" rx="1"/><path d="M3 3h10"/></svg></span><b data-i18n="dockMini"></b><small data-i18n="dockMiniD"></small></button>
             <button type="button" class="opt" data-val="off"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2l12 12"/><rect x="2" y="9.5" width="12" height="4" rx="1"/></svg></span><b data-i18n="dockOff"></b><small data-i18n="dockOffD"></small></button>
+          </div>
+          <div class="row stack"><span class="ri b"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="12" height="5" rx="1"/></svg></span><span class="txt"><b data-i18n="sDockStyle"></b><span class="lbl" data-i18n="sDockStyleD"></span></span></div>
+          <div class="opts" data-key="dockStyle">
+            <button type="button" class="opt" data-val="bar"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="6" width="13" height="4.5" rx="2.2"/><path d="M4 8.25h1M7 8.25h5"/></svg></span><b data-i18n="dsBar"></b><small data-i18n="dsBarD"></small></button>
+            <button type="button" class="opt" data-val="tile"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><path d="M5 6h1.5M9 6h2M5 8.5h6M5 11h1M7.5 11h1M10 11h1"/></svg></span><b data-i18n="dsTile"></b><small data-i18n="dsTileD"></small></button>
+            <button type="button" class="opt" data-val="orb"><span class="ri n"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="12.5" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="12.5" cy="5" r="1.2"/><path d="M3.2 9.2A9 9 0 0 1 9.2 3.2"/></svg></span><b data-i18n="dsOrb"></b><small data-i18n="dsOrbD"></small></button>
           </div>
           <div class="row"><span class="ri b"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v13M1.5 8h13M8 1.5 6.3 3.2M8 1.5l1.7 1.7M8 14.5l-1.7-1.7M8 14.5l1.7-1.7M1.5 8l1.7-1.7M1.5 8l1.7 1.7M14.5 8l-1.7-1.7M14.5 8l-1.7 1.7"/></svg></span><span class="txt"><b data-i18n="sPos"></b><span class="lbl" data-i18n="sPosD"></span></span><button class="btn line sm" id="resetPos" type="button" data-i18n="resetPos"></button></div>
         </div>

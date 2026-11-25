@@ -10,7 +10,7 @@
 
 **Note shape** (sanitised by `PN.cleanNote` in `shared.js`): `id, text, color (PN.COLORS), op (0.3–1, opacity), x, y, anchor{sel,fx,dy}, hl{text,prefix,suffix}, off, quote, done, min, pri ("urgent"|""), w, h, createdAt, updatedAt`.
 
-**Settings keys:** `visible, notesWhen, autoMin, dock, dockFolded, dockHidden, dockPos, tips, guide, guideMode, undo, snapshots, noteType, lang, theme (system|light|dark), sidePanel, dev, notesView, notesFilter{status,tags[]}`.
+**Settings keys:** `visible, notesWhen, autoMin, dock, dockStyle (bar|tile|orb), dockFolded, dockHidden, dockPos, tips, guide, guideMode, undo, snapshots, noteType, lang, theme (system|light|dark), sidePanel, dev, notesView, notesFilter{status,tags[]}`.
 
 ## Messages (content/popup → `background.js`)
 `count` (badge) · `fonts` (UI fonts for the shadow root) · `keys` (real shortcuts via chrome.commands.getAll) · `open-dashboard` · `open-settings` · `send-to-tab` · `shot` (capture snapshot).
