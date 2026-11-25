@@ -9,5 +9,5 @@
   "repository": { "type": "git", "url": "https://github.com/hamza-guetioui/guetix-page-notes.git" },
   "type": "module",
   "engines": { "node": ">=18" },
-  "scripts": { "build": "node scripts/build.mjs" }
+  "scripts": { "build": "node scripts/build.mjs", "test": "node scripts/check-urls.mjs" }
 }

@@ -10,6 +10,7 @@
  * Public API:
  * - PREFIX, SHOT, COLORS  key prefixes and note color palette
  * - normUrl, keyFor       stable page URL and its storage key
+ * - rekey                 move records to their key after normUrl rules change
  * - noteLink, uid         deep link to one note, new note id
  * - supported             can notes run on this URL?
  * - allPages              all saved page records, newest first
@@ -24,7 +25,10 @@ var PN = (function () {
   var SHOT = "s:"; // note snapshot: s:<note id>  (JPEG data URL, kept apart so typing never rewrites images)
   // Same palette as the @guetix/page-notes package.
   var COLORS = ["#fde047", "#f9a8d4", "#86efac", "#7dd3fc"];
-  var TRACKING = /^(utm_|fbclid$|gclid$|msclkid$|mc_cid$|mc_eid$|_ga$|ref_src$)/i;
+  var TRACKING = /^(utm_|fbclid$|gclid$|msclkid$|mc_cid$|mc_eid$|_ga$|ref_src$|si$|srsltid$|igshid$|igsh$|yclid$|ttclid$|twclid$|_hsenc$|_hsmi$|mkt_tok$)/i;
+  // Pages that rewrite their own query while you use them (YouTube moves ?index=/&t= along a playlist):
+  // host (no www./m./music.) + path → the only params that name the page. Old keys are moved by PN.rekey (background.js).
+  var KEEP = { "youtube.com/watch": ["v"] };
   var URL_RE = /\bhttps?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/gi;
 
   /**
@@ -36,15 +40,50 @@ var PN = (function () {
     try {
       var u = new URL(href);
       u.hash = "";
-      Array.from(u.searchParams.keys()).forEach(function (k) {
-        if (TRACKING.test(k)) u.searchParams.delete(k);
-      });
       var path = u.pathname.replace(/\/+$/, "") || "/";
+      var keep = KEEP[u.hostname.replace(/^(www|m|music)\./, "") + path];
+      Array.from(u.searchParams.keys()).forEach(function (k) {
+        if (TRACKING.test(k) || (keep && keep.indexOf(k) < 0)) u.searchParams.delete(k);
+      });
       var q = u.searchParams.toString();
       return u.origin + path + (q ? "?" + q : "");
     } catch (e) {
       return String(href);
     }
+  }
+  /**
+   * Re-file page records saved under a key that normUrl no longer gives (its rules changed, e.g. YouTube
+   * ?index=): each moves to its normalized key, merged by note id with what is already there.
+   * @param {Object} store - every stored key → value
+   * @returns {{set: Object, remove: string[]}} writes to do (empty when nothing moved)
+   */
+  function rekey(store) {
+    var set = {};
+    var remove = [];
+    Object.keys(store).forEach(function (k) {
+      var pre = k.slice(0, 2);
+      var src = store[k];
+      if ((pre !== "p:" && pre !== "d:") || !src || !Array.isArray(src.notes)) return;
+      var nk = pre + normUrl(k.slice(2));
+      if (nk === k) return;
+      var dst = set[nk] || store[nk];
+      if (dst && Array.isArray(dst.notes)) {
+        var ids = {};
+        dst.notes.forEach(function (n) {
+          ids[n.id] = 1;
+        });
+        dst = Object.assign({}, dst, {
+          notes: dst.notes.concat(src.notes.filter(function (n) {
+            return !ids[n.id];
+          })),
+          updatedAt: Math.max(dst.updatedAt || 0, src.updatedAt || 0),
+        });
+      } else dst = Object.assign({}, src);
+      dst.url = nk.slice(2);
+      set[nk] = dst;
+      remove.push(k);
+    });
+    return { set: set, remove: remove };
   }
   /**
    * Storage key of a page record.
@@ -226,6 +265,7 @@ var PN = (function () {
           quote: String(n.quote || "").slice(0, 160),
           done: !!n.done,
           min: !!n.min,
+          nowrap: !!n.nowrap, // dashboard: keep long lines and scroll sideways
           pri: n.pri === "urgent" ? "urgent" : "",
           w: n.w ? Math.max(160, Math.min(460, num(n.w))) : 0,
           h: n.h ? Math.max(110, Math.min(480, num(n.h))) : 0,
@@ -291,6 +331,6 @@ var PN = (function () {
       .join("\n\n---\n\n");
   }
 
-  var api = { asText: asText, devText: devText, setDev: setDev, PREFIX: PREFIX, SHOT: SHOT, COLORS: COLORS, normUrl: normUrl, keyFor: keyFor, noteLink: noteLink, uid: uid, supported: supported, pad: pad, allPages: allPages, when: when, host: host, links: links, rich: rich, cleanPage: cleanPage };
+  var api = { asText: asText, devText: devText, setDev: setDev, PREFIX: PREFIX, SHOT: SHOT, COLORS: COLORS, normUrl: normUrl, rekey: rekey, keyFor: keyFor, noteLink: noteLink, uid: uid, supported: supported, pad: pad, allPages: allPages, when: when, host: host, links: links, rich: rich, cleanPage: cleanPage };
   return api;
 })();

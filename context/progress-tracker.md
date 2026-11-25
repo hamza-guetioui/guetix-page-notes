@@ -7,6 +7,59 @@
   downloadable zip `public/extensions/guetix-page-notes.zip` (refresh it from `dist/` after a release).
 - Version **1.5.0** on `dev` (redesign merged via PRs #5/#6 era work); release = PR `dev` → `main`, then tag `v1.5.0`.
 - Chrome Web Store listing is still on 1.2.0 (upload pending).
+- 2026-11-25 All notes polish: Glass view removed, Board hidden (add "board" to `VIEWS` in notes.js + unhide its button to restore);
+  toolbar row 2 = Filter + view switcher left, count + Select right, all 36px; fixed header/footer with a scrolling notes
+  section (>700px wide, >520px tall); empty state centred + collapsible "How to add notes" panel (i18n keys `dTip*`).
+- 2026-11-25 cards + dropdowns: Sticky cards fixed 196px, untilted (crisp text); Preview cards vertical — snapshot full
+  width at its 16:6 ratio on top, fixed 128px body, `minmax(420px)` (2 per row on a laptop); Site/Sort are custom
+  dropdowns (`dropdown()` in notes.js; the hidden `<select>` stays the source of truth) with favicons, counts, site search.
+- 2026-11-25 Preview card v2: 3 per row (2 under 1000px, 1 under 640px); head = domain + "…" menu (`popMenu()`, actions from
+  `noteActs()` shared with the hover bar); inset rounded snapshot (contain + blurred copy behind) opens the page; page path link in a box at its bottom over a
+  dark gradient (redirect icon slides in on hover);
+  4-line scrolling text; footer = status dropdown (Open / Urgent / Done, `STATUS`) + colour pill (dot + chevron) opening a "Note color" swatch popup (popMenu swatch mode) + time.
+  Edit modal redesigned: header (colour bar · title · page · ×), body (colours + Urgent/Done, rounded note tinted
+  from --c: pastel in light, dark tint + light text in dark), footer (hint · Cancel · Save).
+  Colour popup opens upward (popMenu `up`). Snapshot follows the colour: on the page it is retaken when the pointer
+  leaves a recoloured note (content.js `_shotColor`); a colour change in the dashboard drops the stale shot (`dropShot`)
+  and content.js `fillShots()` takes a new one when the page is visible again (also fills old notes with no shot).
+- Fix: YouTube notes vanished when the playlist moved ?index= (the page key changed). normUrl now keeps only ?v= on
+  youtube.com/watch (KEEP table) + more tracking params (si, srsltid, igshid…); PN.rekey merges old records into
+  the new key on install/update/startup. Self-check: `npm test`.
+- Sticky card: header = favicon + domain · time; page link box under it (.pgb: link icon + the link: bold domain +
+  muted path, page title in the tooltip; redirect icon always visible, stronger on hover), 13.5px text fills the free area and scrolls when long (also while editing; was clipped by .nc .t overflow:hidden),
+  empty note placeholder fills it too (all clickable), inline edit puts the caret where you clicked and keeps the scroll
+  (caretRangeFromPoint); no hover/focus lift and footer pills all 26px, so footers line up across a row,
+  height 216px; actions are a drawer (actions(bot, e, true)): an always-visible "…" at the
+  bottom right opens a row of actions above it, growing left (no done: the status dropdown does it; CSS tooltips above), morphs to ×; outside
+  click / Esc closes, closed = inert; card is overflow:clip (focus can not scroll it); status = the preview dropdown
+  (statusBtn, shared); new clearer action icons (AI). Edit modal header: site icon | domain over the page path;
+  popMenu inside a card opens over the card (towards its larger side) and stays within its edges; pop menus are
+  compact (min 150px, 30px rows); card badges (.npill/.vst) are white with a coloured ring (dark: --raised).
+- Timeline redesign (rowCard): clock time in a gutter beside the rail, colour dot on the rail, rows with a 4px
+  colour edge; text (click to edit, 3 lines) over favicon · domain / page link · time; status dropdown + action
+  drawer (opens to the left) on the right. <=640px: no time gutter. Edit modal header slimmer (9px padding);
+  the modal and keyboard-opened inline edit start the caret at the beginning of the text.
+- Timeline row v2: a header line tinted with the note colour (site / page · time, status + drawer on the same
+  line) over the note text, which scrolls past 5 lines (edit textarea same height, resizable). RTL checked (drawer,
+  time gutter). Editor + delete-confirm labels now translated (cancel, save, edHint, edPh in all 10 languages).
+- Note text never scrolls sideways (long words/URLs wrap) unless the note is set to "Don't wrap lines": new
+  per-note toggle in the actions (n.nowrap, kept by cleanPage on import; vwWrap/vwNoWrap in 10 languages) -> lines
+  keep their layout (code, tables) and scroll sideways. Dashboard only; the on-page note still wraps.
+- Timeline row: plain card background, colour only in the border and the thin divider under the header
+- content.js loading/lag fixes: (1) SPA navigation is picked up at once (Navigation API navigatesuccess +
+  popstate; the 800ms timer is the fallback) - was up to 0.8s of the old page's notes; (2) load() ignores a
+  storage reply for a page we already left (fast navigation could show no notes); (3) reposition is throttled,
+  not debounced - on pages that never stop changing (feeds, players) it never ran, so highlight/element notes
+  stayed hidden; (4) the MutationObserver does nothing on pages without notes. Tested on a stub SPA page.
+- PN.withLoader (i18n.js) wraps the data loads of All my notes (refresh) and the popup (loadAll): after 300ms a
+  small "Preparing your notes…" pill at the bottom centre (4 dots in the note colours, never blocks the page);
+  on failure or after 10s it turns into "Couldn't load your notes" + Try again. Styles .pn-load in ui.css;
+  strings ldNotes/ldErrT/ldErrX/retry in 10 languages.
+  All my notes: the first load shows the state as a status page in the grid instead (loadState, same layout as
+  the "no notes" page: colour dots + "Preparing your notes…", or ! + message + Try again); later reloads use the pill. so it reads as one element; note text has 14/18px padding and its hover/edit area fills the body. text is click-to-edit like preview (inlineEdit). Empty notes show a placeholder (textEl): low-opacity
+  "Empty note — click to start writing" text where editable, "Empty note" elsewhere. i18n: emptyNote, emptyTap.
+  Click / Enter on the note text edits it in place (`inlineEdit`: blur or Ctrl+Enter saves, Esc cancels).
+  New i18n keys `vwMore`, `vwColor`, `clr0`..`clr3` (names of PN.COLORS in order).
 
 ## History carried over from guetix.com
 **Page Notes extension** v1.3.1 (`extensions/page-notes/`), open source at

@@ -158,4 +158,23 @@ mark{background:#ffe58a;color:var(--ink);padding:0 2px;border-radius:3px}
 [data-theme=dark] mark{background:rgba(242,201,76,.26);color:#fff3c4}
 [data-theme=dark] .swatch{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 [data-theme=dark] ::selection{background:rgba(110,152,255,.35)}
+/* PN.withLoader (i18n.js): a small pill at the bottom centre, never blocks the page; turns into an error + Try again */
+.pn-load{position:fixed;inset-inline:0;bottom:18px;z-index:2147483000;display:flex;justify-content:center;padding:0 12px;pointer-events:none}
+.pn-load-card{display:flex;align-items:center;gap:10px;max-width:min(440px,100%);padding:8px 16px 8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);box-shadow:var(--sh-3);color:var(--ink);font:500 12.5px/1.35 var(--sans);pointer-events:auto;animation:pn-load-in .28s cubic-bezier(.2,.9,.3,1.2) both}
+.pn-load-tx{display:flex;flex-direction:column;min-width:0}
+.pn-load-tx b{font-weight:600}
+.pn-load-tx small{font-size:11.5px;color:var(--muted)}
+.pn-load-ic{display:flex;align-items:center;gap:3px;flex:none;height:16px}
+.pn-load-ic i{width:6px;height:6px;border-radius:50%;animation:pn-wave 1s ease-in-out infinite}
+.pn-load-ic i:nth-child(2){animation-delay:.12s}.pn-load-ic i:nth-child(3){animation-delay:.24s}.pn-load-ic i:nth-child(4){animation-delay:.36s}
+.pn-load.err .pn-load-card{padding:8px 8px 8px 12px;border-radius:14px;border-color:color-mix(in srgb,var(--red) 35%,var(--line))}
+.pn-load.err .pn-load-ic{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--r-tint)}
+.pn-load.err .pn-load-ic::before{content:"!";color:var(--red);font:700 13px/1 var(--sans)}
+.pn-load-btn{flex:none;height:30px;margin-inline-start:6px;padding:0 14px;border:0;border-radius:999px;background:var(--grad-ac);color:#fff;font:600 12px/1 var(--sans);cursor:pointer}
+.pn-load-btn:hover{filter:brightness(1.07)}
+.pn-load-btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+@keyframes pn-wave{0%,60%,100%{transform:translateY(0);opacity:.55}30%{transform:translateY(-5px);opacity:1}}
+@keyframes pn-load-in{from{opacity:0;transform:translateY(10px) scale(.96)}}
+@media (prefers-reduced-motion:reduce){.pn-load-ic i{animation:pn-pulse 1.6s ease-in-out infinite!important}.pn-load-ic i:nth-child(n){animation-delay:0s!important}} /* no movement, a soft pulse still shows progress */
+@keyframes pn-pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

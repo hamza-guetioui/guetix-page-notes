@@ -242,7 +242,7 @@
   // larger SVG paths for empty-state cards (20x20 viewBox)
   var ICONS = {
     note: '<path d="M4 3h12v9l-4 4H4z"/><path d="M12 16v-4h4"/><path d="M7 7h6M7 10h3"/>',
-    lock: '<rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/><path d="M10 12.5v1.5"/>',
+    blocked: '<circle cx="10" cy="10" r="7"/><path d="m5 15 10-10"/>', // no-entry sign
     filter: '<path d="M3 4h14l-5.5 6.5V16l-3-1.5v-4z"/>',
     spark: '<path d="M4 5h9v8l-3 3H4z"/><path d="M10 16v-3h3"/><path d="M16 2.5v3M14.5 4h3M17 9v2M16 10h2"/>',
   };
@@ -486,9 +486,9 @@
     home.textContent = "";
     $("addRow").hidden = !(ok && pageNotes.length);
     var newBtn = { primary: true, plus: true, label: PN.t("newNote"), run: placeNote };
-    if (!ok) home.appendChild(emptyState({ icon: "lock", tone: "n", title: PN.t("lockT"), text: PN.t("lockS") }));
+    if (!ok) home.appendChild(emptyState({ icon: "blocked", tone: "o", title: PN.t("lockT"), text: PN.t("lockS") }));
     else if (!pageNotes.length) {
-      home.appendChild(emptyState({ illus: true, tone: "b", title: total ? PN.t("emptyPageT") : PN.t("firstT"), text: PN.t("emptyPageX"), actions: [newBtn] }));
+      home.appendChild(emptyState({ illus: true, tone: "b", title: PN.t("emptyPageT"), text: PN.t("emptyPageX"), actions: [newBtn] }));
     } else {
       pageEntries
         .slice()
@@ -541,7 +541,7 @@
 
     var list = $("nlist");
     list.textContent = "";
-    if (state.view === "page" && !ok) list.appendChild(emptyState({ icon: "lock", tone: "n", title: PN.t("lockT"), text: PN.t("lockS") }));
+    if (state.view === "page" && !ok) list.appendChild(emptyState({ icon: "blocked", tone: "o", title: PN.t("lockT"), text: PN.t("lockS") }));
     else if (!total) list.appendChild(emptyState({ illus: true, tone: "b", title: PN.t("firstT"), text: PN.t("hint"), shortcuts: true }));
     else if (!base.length && q) list.appendChild(emptyState({ icon: "filter", tone: "n", title: PN.t("noMatch"), text: PN.t("noMatchX") }));
     else if (!base.length) list.appendChild(emptyState({ icon: "note", tone: "y", title: state.view === "page" ? PN.t("emptyPageT") : PN.t("siteEmpty"), text: PN.t("hint"), shortcuts: true }));
@@ -591,9 +591,18 @@
       });
     }
     chrome.storage.onChanged.addListener(function () {
-      chrome.storage.local.get(null, render);
+      loadAll();
     });
   });
+  /** Reads all storage and renders it (loading overlay when slow, Try again on failure). */
+  function loadAll() {
+    PN.withLoader(function (done, fail) {
+      chrome.storage.local.get(null).then(function (s) {
+        render(s);
+        done();
+      }).catch(fail);
+    });
+  }
   /**
    * Reads the active tab, fills the header, then renders the data.
    * @param {Array<Object>} tabs - result of chrome.tabs.query
@@ -610,7 +619,7 @@
       if (tab.favIconUrl && /^https?:/.test(tab.favIconUrl)) $("fav").src = tab.favIconUrl;
       else $("fav").style.display = "none";
     }
-    chrome.storage.local.get(null, render);
+    loadAll();
   }
 
   // ---------- Event handlers ----------

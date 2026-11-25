@@ -11,6 +11,7 @@
  *   - storage: one record per page (key from PN.keyFor, see shared.js) plus global "settings"
  *   - anchoring: free (document px), element (CSS selector) or highlighted text (text + context)
  *   - notes: build, drag, resize, create, snapshot, delete (with Undo)
+ *     (snapshot retaken after a text or colour change; missing ones filled in when the tab is visible)
  *   - placing mode, dock (toolbar), toast, visibility, focus / deep links (#gx-note=<id>)
  *   - messages from background.js and observers that keep notes in place as the page changes
  *
@@ -133,7 +134,7 @@
     ".hl::before{left:-5px;top:-5px;border-right:0;border-bottom:0}.hl::after{right:-5px;bottom:-5px;border-left:0;border-top:0}",
     ".hl i{position:absolute;left:-1.5px;bottom:100%;margin-bottom:4px;padding:3px 8px;border-radius:6px;background:#0d3aa8;color:#fff;font:500 11.5px " + UIF + ";font-style:normal;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}",
     // guide card (teaching tip): icon tile + title + key steps + close
-    ".hint{position:fixed;right:16px;bottom:66px;display:none;align-items:center;gap:12px;width:max-content;max-width:min(390px,calc(100vw - 32px));padding:10px 8px 10px 10px;background:var(--gx-surface);color:var(--gx-ink);border:1px solid var(--gx-border);border-radius:12px;box-shadow:var(--gx-sh-pop);pointer-events:auto;text-transform:none;letter-spacing:0;font:400 13px/1.35 " + UIF + ";animation:gx-up .18s ease-out}",
+    ".hint{position:fixed;right:8px;bottom:66px;display:none;align-items:center;gap:12px;width:max-content;max-width:min(390px,calc(100vw - 32px));padding:10px 8px 10px 10px;background:var(--gx-surface);color:var(--gx-ink);border:1px solid var(--gx-border);border-radius:12px;box-shadow:var(--gx-sh-pop);pointer-events:auto;text-transform:none;letter-spacing:0;font:400 13px/1.35 " + UIF + ";animation:gx-up .18s ease-out}",
     ".hint::after{content:'';position:absolute;right:46px;bottom:-5px;width:10px;height:10px;background:var(--gx-surface);transform:rotate(45deg)}",
     ".hi-ic{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:var(--gx-head);color:var(--gx-blue);box-shadow:inset 0 0 0 1px rgba(27,94,247,.12)}",
     ".hi-ic svg,.t-ic svg,.dk svg,.mi svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
@@ -147,7 +148,7 @@
     ".hi-x:hover{background:var(--gx-hover);color:var(--gx-ink)}",
     ".hi-x:focus-visible{outline:2px solid var(--gx-blue);outline-offset:1px}",
     // toast: icon + message + optional action, with a countdown bar
-    ".toast{position:fixed;right:16px;bottom:66px;display:none;align-items:center;gap:10px;max-width:min(390px,calc(100vw - 32px));padding:6px 6px 6px 8px;border-radius:10px;overflow:hidden;background:var(--gx-toast);color:#fff;pointer-events:auto;text-transform:none;letter-spacing:0;font:400 13px/1.3 " + UIF + ";box-shadow:var(--gx-sh-toast);animation:gx-up .18s ease-out}",
+    ".toast{position:fixed;right:8px;bottom:66px;display:none;align-items:center;gap:10px;max-width:min(390px,calc(100vw - 32px));padding:6px 6px 6px 8px;border-radius:10px;overflow:hidden;background:var(--gx-toast);color:#fff;pointer-events:auto;text-transform:none;letter-spacing:0;font:400 13px/1.3 " + UIF + ";box-shadow:var(--gx-sh-toast);animation:gx-up .18s ease-out}",
     ".t-ic{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.1);color:#9dbcff}",
     ".t-ic svg{width:15px;height:15px}",
     ".t-tx{padding-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
@@ -155,11 +156,18 @@
     ".toast button:hover{background:" + BLUE_HOVER + "}",
     ".toast button:focus-visible{outline:2px solid #9dbcff;outline-offset:1px}",
     ".t-bar{position:absolute;left:0;bottom:0;width:100%;height:2px;background:#4c86ff;transform-origin:left;animation:gx-count linear forwards}",
+    // "Note deleted · Undo": light card with a brand-orange outline (icon, button and timer bar in orange too)
+    ".toast.undo{background:var(--gx-surface);color:var(--gx-ink);border:1.5px solid " + ORANGE + ";box-shadow:0 8px 24px rgba(0,0,0,.12)}",
+    ".toast.undo .t-ic{background:none;border:1.5px solid rgba(255,91,20,.45);color:" + ORANGE + "}",
+    ".toast.undo button{background:none;border:1.5px solid " + ORANGE + ";color:" + ORANGE + ";height:25px;line-height:25px}",
+    ".toast.undo button:hover{background:rgba(255,91,20,.1)}",
+    ".toast.undo button:focus-visible{outline-color:rgba(255,91,20,.5)}",
+    ".toast.undo .t-bar{background:" + ORANGE + "}",
     "@keyframes gx-count{from{transform:scaleX(1)}to{transform:scaleX(0)}}",
     "@keyframes gx-drop{from{opacity:0;transform:translate(-50%,-8px)}}",
     "@keyframes gx-rise{from{opacity:0;transform:translate(-50%,8px)}}",
     // dock (bottom right): [logo + count] [nav] [+ Note | caret] [min] [eye] [more] [x]  -  folded = logo + count only
-    ".dock{position:fixed;right:16px;bottom:16px;display:none;align-items:center;gap:2px;padding:4px;background:var(--gx-surface);border:1px solid var(--gx-border);border-radius:12px;box-shadow:var(--gx-sh-dock);font:400 13px/1.2 " + UIF + ";pointer-events:auto;animation:dock-in .3s cubic-bezier(.3,1.4,.5,1)}",
+    ".dock{position:fixed;right:8px;bottom:8px;display:none;align-items:center;gap:2px;padding:4px;background:var(--gx-surface);border:1px solid var(--gx-border);border-radius:12px;box-shadow:var(--gx-sh-dock);font:400 13px/1.2 " + UIF + ";pointer-events:auto;animation:dock-in .3s cubic-bezier(.3,1.4,.5,1)}",
     ".dock button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;height:32px;border-radius:8px;transition:background .15s,color .15s,box-shadow .15s}",
     ".vr{flex:none;width:1px;height:18px;margin:0 3px;background:var(--gx-sep)}",
     ".dock.placing>.vr{display:none}",
@@ -277,21 +285,24 @@
     ".rmz{position:fixed;left:50%;top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;opacity:0;visibility:hidden;transform:translate(-50%,-18px) scale(.8);transform-origin:50% 0;transition:opacity .18s ease-out,transform .18s cubic-bezier(.2,.9,.3,1.2),visibility 0s linear .18s}",
     ".rmz.on{opacity:1;visibility:visible;transform:translate(-50%,0) scale(1);transition-delay:0s}",
     // iOS-like frosted glass circle: translucent + blurred until the note is over it, then a soft red with a ripple
-    ".rmz-b{position:relative;display:flex;align-items:center;justify-content:center;width:52px;height:52px;box-sizing:border-box;border:1px solid rgba(255,255,255,.45);border-radius:50%;background:rgba(120,120,128,.22);-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);color:rgba(220,38,38,.9);box-shadow:0 8px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.35);transition:width .28s cubic-bezier(.34,1.56,.64,1),height .28s cubic-bezier(.34,1.56,.64,1),background .2s,border-color .2s,color .2s,box-shadow .2s}",
+    ".rmz{--rz:#e5484d;--rz-t:rgba(229,72,77,.1)}", // delete = red outline
+    ".rmz.cx{--rz:#5b6273;--rz-t:rgba(91,98,115,.1)}", // cancel = grey outline
+    ".rmz-b{position:relative;display:flex;align-items:center;justify-content:center;width:52px;height:52px;box-sizing:border-box;border:1.5px solid var(--rz);border-radius:50%;background:rgba(255,255,255,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:var(--rz);box-shadow:0 6px 18px rgba(0,0,0,.1);transition:width .28s cubic-bezier(.34,1.56,.64,1),height .28s cubic-bezier(.34,1.56,.64,1),background .2s,box-shadow .2s}",
     ".rmz.on:not(.hot) .rmz-b{animation:rmz-breathe 1.6s ease-in-out infinite}",
-    ".rmz-b::after{content:'';position:absolute;inset:-1px;border-radius:50%;border:2px solid rgba(255,59,48,.35);opacity:0;pointer-events:none}",
+    ".rmz-b::after{content:'';position:absolute;inset:-1.5px;border-radius:50%;border:1.5px solid var(--rz);opacity:0;pointer-events:none}",
     ".rmz.hot .rmz-b::after{animation:rmz-ring 1.1s ease-out infinite}",
-    "@keyframes rmz-breathe{50%{transform:scale(1.06);background:rgba(120,120,128,.3)}}",
+    "@keyframes rmz-breathe{50%{transform:scale(1.06)}}",
     "@keyframes rmz-ring{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}",
-    ".rmz.hot .rmz-b{width:66px;height:66px;background:rgba(255,59,48,.62);border-color:rgba(255,255,255,.55);color:#fff;box-shadow:0 10px 28px rgba(255,59,48,.25),inset 0 1px 0 rgba(255,255,255,.4)}",
+    ".rmz.hot .rmz-b{width:66px;height:66px;background:linear-gradient(var(--rz-t),var(--rz-t)),rgba(255,255,255,.85);box-shadow:0 8px 22px rgba(0,0,0,.12)}",
     ".rmz svg{width:24px;height:24px;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}",
-    ".rmz.hot svg{width:30px;height:30px;stroke-width:2}",
-    ".rmz .lid{transform-box:view-box;transform-origin:16px 6px;transition:transform .2s cubic-bezier(.3,1.8,.5,1)}", // hinge at the lid's right end; overshoot = bounce
-    ".rmz.hot .lid{transform:rotate(-20deg)}",
+    ".rmz.hot svg{width:30px;height:30px;transform:translateY(2px)}",
+    ".rmz .i-x,.rmz.cx .i-bin{display:none}.rmz.cx .i-x{display:block}",
+    ".rmz .lid{transform-box:view-box;transform-origin:3.5px 5.5px;transition:transform .2s cubic-bezier(.3,1.8,.5,1)}", // hinge = lid's left end; overshoot = bounce
+    ".rmz.hot .lid{transform:translateY(-1.5px) rotate(-28deg)}",
     ".rmz.hot.shut .lid{transform:none}",
     ".rmz.shut .rmz-b{animation:rmz-gulp .22s cubic-bezier(.2,.9,.3,1.4)}",
     "@keyframes rmz-gulp{40%{transform:scale(.88)}}",
-    ".rmz-l{padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6);border:1px solid rgba(255,255,255,.6);color:#d70015;box-shadow:0 6px 18px rgba(0,0,0,.18);font:600 12px/1.25 " + UIF + ";letter-spacing:0;text-transform:none;white-space:nowrap;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s}",
+    ".rmz-l{padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.85);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--rz);color:var(--rz);box-shadow:0 4px 14px rgba(0,0,0,.1);font:600 12px/1.25 " + UIF + ";letter-spacing:0;text-transform:none;white-space:nowrap;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s}",
     ".rmz.hot .rmz-l{opacity:1;transform:none}",
     ".gxn-note.doomed{opacity:.6;transform:rotate(var(--r)) scale(.9)}",
     ".gxn-note.pg.doomed{transform:translate3d(var(--x,0),var(--y,0),0) rotate(-3deg) scale(.9)}",
@@ -299,8 +310,11 @@
     ".fixed{z-index:3}", // HUD (remove zone included) stays above a dragged note (z-index 2)
     // dark-only touches that are not plain token swaps
     ":host([data-theme=dark]) .toast,:host([data-theme=dark]) .coord{border:1px solid #424858}",
-    ":host([data-theme=dark]) .rmz-l{background:rgba(32,35,44,.6);border-color:rgba(255,255,255,.12);color:#ff9b9b}",
-    ":host([data-theme=dark]) .rmz:not(.hot) .rmz-b{border-color:rgba(255,255,255,.14);background:rgba(160,165,180,.18);color:#ff8a80}",
+    ":host([data-theme=dark]) .toast.undo{border:1.5px solid #ff7a3d;box-shadow:0 8px 24px rgba(0,0,0,.4)}",
+    ":host([data-theme=dark]) .rmz{--rz:#ff8a80;--rz-t:rgba(255,138,128,.14)}",
+    ":host([data-theme=dark]) .rmz.cx{--rz:#aab0bd;--rz-t:rgba(170,176,189,.14)}",
+    ":host([data-theme=dark]) .rmz-b,:host([data-theme=dark]) .rmz-l{background:rgba(32,35,44,.78)}",
+    ":host([data-theme=dark]) .rmz.hot .rmz-b{background:linear-gradient(var(--rz-t),var(--rz-t)),rgba(32,35,44,.9)}",
     ":host([data-theme=dark]) .dock .brand,:host([data-theme=dark]) .hi-ic{box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}",
     ":host([data-theme=dark]) .dock .brand:hover{box-shadow:inset 0 0 0 1px rgba(110,152,255,.4)}",
     ":host([data-theme=dark]) .cnt{box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}",
@@ -323,6 +337,7 @@
   var dockWanted = false;
   var revealed = false; // "only when I open Page Notes": notes stay hidden until the user asks this session
   var dockExpanded = false; // "always, small" toolbar: expanded by a click this session
+  var dockResting = false; // folded on its own after the user finished writing; hover or click opens it again
   var dockClosed = false; // ✕ on the dock (also saved as settings.dockHidden): hidden until the user adds a new note
   var guideOpen = true; // guide card visible for this placing session (compact mode starts closed)
   var mode = "free"; // placing mode: free | el (stick to element) | hl (highlight text)
@@ -333,7 +348,7 @@
     el: '<rect x="3" y="3" width="14" height="14" rx="2" stroke-dasharray="3 2.5"/><circle cx="10" cy="10" r="2"/>',
     hl: '<path d="M3 17h14M6 13.5l6.5-7.5 3 2.6-6.5 7.4H6z"/>',
     trash: '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/>',
-    bin: '<g class="lid"><path d="M4 6h12M8 6V4h4v2"/></g><path d="M6 6l1 11h6l1-11M8.5 9v5M11.5 9v5"/>', // remove target: the lid opens on its own
+    bin: '<g class="lid"><path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5"/></g><path d="M5.5 5.5l.8 10.6a1.5 1.5 0 0 0 1.5 1.4h4.4a1.5 1.5 0 0 0 1.5-1.4l.8-10.6M8.5 9v5M11.5 9v5"/>', // remove target: the lid lifts on its own
     check: '<path d="M4.5 10.5 8 14l7.5-8.5"/>',
     info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.5v.5"/>',
     list: '<path d="M7 5h9M7 10h9M7 15h9M3.5 5h.5M3.5 10h.5M3.5 15h.5"/>',
@@ -398,10 +413,17 @@
   var rmz = el("div", "rmz");
   rmz.setAttribute("aria-hidden", "true");
   var rmzBtn = el("span", "rmz-b");
-  rmzBtn.appendChild(svg("bin"));
+  rmzBtn.append(svg("bin"), svg("x"));
+  rmzBtn.firstChild.setAttribute("class", "i-bin");
+  rmzBtn.lastChild.setAttribute("class", "i-x");
   var rmzLabel = el("span", "rmz-l", "Release to delete");
   rmz.append(rmzBtn, rmzLabel);
   var dock = buildDock();
+  dock.root.addEventListener("pointerenter", function () {
+    if (!dockResting) return;
+    dockResting = false; // hovering the folded toolbar opens it again
+    updateDock();
+  });
   fixed.append(hl, tx, gh, gv, coord, catcher, pg, rmz, hint, toast, dock.root);
   shadow.append(style, layer, fixed);
   document.documentElement.appendChild(host);
@@ -526,9 +548,10 @@
     chrome.storage.local.get("settings", function (s) {
       // inspect mode keeps its own notes: pick the key before reading the page
       PN.setDev(s.settings && s.settings.dev);
-      key = PN.keyFor(location.href);
-      chrome.storage.local.get(key, function (r) {
-        page = r[key] || null;
+      var k = (key = PN.keyFor(location.href));
+      chrome.storage.local.get(k, function (r) {
+        if (k !== key) return; // the page changed (SPA navigation) while reading: a newer load() owns it
+        page = r[k] || null;
         settings = s.settings || {};
         applyTheme();
         visible = wantVisible();
@@ -536,9 +559,44 @@
         renderAll();
         checkFocus();
         checkHash();
+        fillShots();
       });
     });
   }
+  var fillT = 0;
+  /**
+   * Notes on screen with no snapshot get one: older notes, and notes recoloured in "All my notes"
+   * (the dashboard drops the stale picture because it cannot take a new one).
+   */
+  function fillShots() {
+    clearTimeout(fillT);
+    fillT = setTimeout(function () {
+      if (!alive() || !page || document.hidden || settings.snapshots === false) return;
+      var ns = page.notes;
+      chrome.storage.local.get(
+        ns.map(function (n) {
+          return PN.SHOT + n.id;
+        }),
+        function (r) {
+          ns.filter(function (n) {
+            var k = nodes[n.id];
+            return !r[PN.SHOT + n.id] && k && !k.root.contains(shadow.activeElement); // not while typing in it
+          }).reduce(function (q, n) {
+            return q.then(function () {
+              return shootNote(n).then(function () {
+                return new Promise(function (res) {
+                  setTimeout(res, 600); // Chrome allows ~2 tab captures per second
+                });
+              });
+            });
+          }, Promise.resolve());
+        },
+      );
+    }, 1500); // let the page settle first
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) fillShots();
+  });
   /** Return this page's record, creating an empty one if needed. @returns {Object} */
   function ensurePage() {
     if (!page) page = { url: url, title: document.title, favicon: favicon(), notes: [], updatedAt: Date.now() };
@@ -628,6 +686,7 @@
       page = nv || null;
       renderAll();
       count();
+      fillShots();
     }
     if (ch.focus && ch.focus.newValue) checkFocus();
   });
@@ -980,6 +1039,13 @@
   function build(n) {
     var root = el("div", "gxn-note");
     root.setAttribute("role", "note");
+    root._shotColor = n.color; // colour in the saved snapshot (retaken when it changes)
+    // done recolouring (pointer left the note) → retake the snapshot so it shows the new colour
+    root.addEventListener("mouseleave", function () {
+      if (n.color !== root._shotColor) setTimeout(function () {
+        if (!root.matches(":hover") && !root.contains(shadow.activeElement)) shootNote(n);
+      }, 250);
+    });
     root.style.background = noteBg(n);
     root.style.setProperty("--r", (((n.createdAt || 0) % 7) - 3) * 0.8 + "deg");
     var bar = el("div", "gxn-bar");
@@ -1091,8 +1157,18 @@
         save();
       }
       setTimeout(refreshView, 0); // empty notes stay on the page until the user deletes them
+      // done writing (focus left the notes, pointer not on the toolbar) → fold the toolbar out of the way
+      if (n.text.trim()) setTimeout(function () {
+        var a = shadow.activeElement;
+        if (a && a.isContentEditable) return; // moved on to another note
+        if (dock && !dock.root.matches(":hover")) {
+          dockResting = true;
+          closeMenus();
+          updateDock();
+        }
+      }, 300);
       // finished writing → retake the snapshot so it shows the note with its text
-      if (n.text !== root._shotText) setTimeout(function () {
+      if (n.text !== root._shotText || n.color !== root._shotColor) setTimeout(function () {
         if (shadow.activeElement !== text) shootNote(n);
       }, 250);
     };
@@ -1219,16 +1295,24 @@
   }
   var rpT = 0;
   var lastIndexAt = 0;
-  /** Debounced reposition(). @param {boolean} [contentChanged] - also rebuild the text index */
+  /**
+   * Throttled reposition() (at most every 140ms). A plain debounce never fired on pages that change all the
+   * time (feeds, players), so their notes and highlights stayed lost.
+   * @param {boolean} [contentChanged] - also rebuild the text index
+   */
   function scheduleReposition(contentChanged) {
     if (contentChanged) indexDirty = true;
-    clearTimeout(rpT);
+    if (rpT) return;
     rpT = setTimeout(function () {
       requestAnimationFrame(function () {
-        // re-find highlighted text at most ~once a second
-        if (indexDirty && page && page.notes.some(function (n) { return n.hl; }) && Date.now() - lastIndexAt > 900) {
-          lastIndexAt = Date.now();
-          resolveHighlights();
+        rpT = 0;
+        if (indexDirty && page && page.notes.some(function (n) { return n.hl; })) {
+          // re-find highlighted text at most ~once a second; retry later if it is too soon
+          var wait = 900 - (Date.now() - lastIndexAt);
+          if (wait <= 0) {
+            lastIndexAt = Date.now();
+            resolveHighlights();
+          } else setTimeout(scheduleReposition, wait);
         }
         reposition();
       });
@@ -1385,10 +1469,11 @@
   /** @param {Object} n - note @returns {Promise<void>} */
   function shootNote(n) {
     var k = nodes[n.id];
-    if (!k || !visible) return Promise.resolve();
+    if (!k || !visible || document.hidden) return Promise.resolve(); // hidden tab: the capture would grab another tab
     var r = k.root.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return Promise.resolve(); // off screen: keep the old one
     k.root._shotText = n.text;
+    k.root._shotColor = n.color;
     return shoot(n.id, r.left + r.width / 2, r.top + r.height / 2);
   }
   /** Ask the worker for a cropped screenshot around the spot (shown in “All my notes”). */
@@ -1601,6 +1686,7 @@
       clearTimeout(trashTimer);
       rmz.classList.remove("shut");
       rmzLabel.textContent = text;
+      rmz.classList.toggle("cx", /cancel/i.test(text)); // cancel shows a grey ✕, delete a red bin
       rmz.classList.add("on");
       on = true;
     } else if (on && cy > EDGE_OUT) {
@@ -1915,7 +2001,8 @@
     brand.append(el("span", "mark"), cnt);
     brand.onclick = function () {
       if (brand._dragged) return (brand._dragged = false); // that was a move, not a click
-      if ((settings.dock || "auto") === "mini") dockExpanded = !dockExpanded;
+      if (dockResting) dockResting = false; // just wake it up; the saved fold state stays as it was
+      else if ((settings.dock || "auto") === "mini") dockExpanded = !dockExpanded;
       else setSettings({ dockFolded: !settings.dockFolded });
       closeMenus();
       updateDock();
@@ -2158,6 +2245,7 @@
     root.append(brand, vr("n"), nav, vr("n"), split, status, vr(), fold, eye, more, close, modes, menu);
     return { fold: fold, eye: eye, root: root, cnt: cnt, menu: menu, modes: modes, caret: caret, pos: pos, prev: prev, next: next, help: help, stLabel: stLabel, add: add, typeItems: typeItems };
   }
+  var DOCK_GAP = 8; // px between the toolbar (and its messages) and the window edges
   /** Saved toolbar spot: stuck to the left or right edge, at the height the user dropped it. */
   /** @returns {string} "l" or "r" */
   function dockSide() {
@@ -2167,24 +2255,24 @@
   /** Put the toolbar at its saved side and height (kept inside the window). */
   function placeDock() {
     var p = settings.dockPos || {};
-    var b = isFinite(p.b) ? p.b : 16;
+    var b = isFinite(p.b) ? p.b : DOCK_GAP;
     var side = dockSide();
     dock.root.style.bottom = Math.max(4, Math.min(b, innerHeight - 44)) + "px";
-    dock.root.style.left = side === "l" ? "16px" : "auto";
-    dock.root.style.right = side === "r" ? "16px" : "auto";
+    dock.root.style.left = side === "l" ? DOCK_GAP + "px" : "auto";
+    dock.root.style.right = side === "r" ? DOCK_GAP + "px" : "auto";
     dock.root.classList.toggle("left", side === "l");
     placePopovers();
   }
   /** Menus, guide card and messages open toward the free space (side + up/down). */
   function placePopovers() {
     var side = dockSide();
-    var bottom = parseFloat(dock.root.style.bottom) || 16;
+    var bottom = parseFloat(dock.root.style.bottom) || DOCK_GAP;
     var down = innerHeight - bottom < innerHeight / 2; // toolbar in the upper half → open downward
     var h = dock.root.offsetHeight || 32;
     dock.root.classList.toggle("down", down);
     [hint, toast].forEach(function (n) {
-      n.style.left = side === "l" ? "16px" : "auto";
-      n.style.right = side === "r" ? "16px" : "auto";
+      n.style.left = side === "l" ? DOCK_GAP + "px" : "auto";
+      n.style.right = side === "r" ? DOCK_GAP + "px" : "auto";
       if (down) {
         n.style.top = innerHeight - bottom + 10 + "px";
         n.style.bottom = "auto";
@@ -2332,7 +2420,7 @@
     var closed = dockClosed || settings.dockHidden === true;
     var show = dm !== "off" && visible && (placing || (!closed && (dm === "mini" || n > 0 || dockWanted)));
     dock.root.style.display = show ? "flex" : "none";
-    var folded = dm === "mini" ? !dockExpanded : !!settings.dockFolded;
+    var folded = (dm === "mini" ? !dockExpanded : !!settings.dockFolded) || dockResting;
     dock.root.classList.toggle("collapsed", folded && !placing);
     placeDock();
     dock.cnt.textContent = String(n);
@@ -2373,6 +2461,7 @@
   function say(text, action, fn) {
     if (action ? settings.undo === false : !tipsOn()) return;
     toast.textContent = "";
+    toast.classList.toggle("undo", !!action);
     var ic = el("span", "t-ic");
     ic.append(svg(action ? "trash" : /copied|stuck/i.test(text) ? "check" : "info"));
     toast.append(ic, el("span", "t-tx", text));
@@ -2572,6 +2661,7 @@
   var mo = new MutationObserver(function (list) {
     if (!alive()) return teardown();
     if (!host.isConnected) document.documentElement.appendChild(host);
+    if (!page || !page.notes.length) return; // nothing to place: skip the work on busy pages
     var content = list.some(function (r) {
       return r.type === "childList" || r.type === "characterData";
     });
@@ -2584,14 +2674,17 @@
     }).observe(document.body);
   addEventListener("pagehide", flush);
 
-  // SPA navigation + layout changes nothing told us about (CSS transitions, hover menus…)
-  var tick = setInterval(function () {
-    if (!alive()) return teardown();
-    var now = PN.normUrl(location.href);
-    if (now === url) {
-      if (visible && page && page.notes.length && !document.hidden) reposition();
-      return;
+  /**
+   * SPA navigation: when the URL names another page, save this one and load the new page's notes.
+   * @returns {boolean} true when the page changed
+   */
+  function checkUrl() {
+    if (!alive()) {
+      teardown();
+      return true;
     }
+    var now = PN.normUrl(location.href);
+    if (now === url) return false;
     flush();
     stopPlacing();
     url = now;
@@ -2602,6 +2695,18 @@
     peek = false;
     renderAll();
     load();
+    return true;
+  }
+  // right away when the page tells us (Navigation API, back/forward); the timer catches the rest
+  if (window.navigation) navigation.addEventListener("navigatesuccess", checkUrl);
+  addEventListener("popstate", checkUrl);
+  // also: layout changes nothing told us about (CSS transitions, hover menus…)
+  var tick = setInterval(function () {
+    if (checkUrl()) return;
+    if (visible && page && page.notes.length && !document.hidden) {
+      if (indexDirty) scheduleReposition();
+      else reposition();
+    }
   }, 800);
 
   /** The extension was reloaded/updated: this copy is disconnected - remove it cleanly. */
@@ -2612,6 +2717,8 @@
       mo.disconnect();
     } catch (e) {}
     clearInterval(tick);
+    if (window.navigation) navigation.removeEventListener("navigatesuccess", checkUrl);
+    removeEventListener("popstate", checkUrl);
     host.remove();
     var other = document.querySelector("gx-page-notes:not([data-gx-stale])"); // a newer copy owns the highlights now
     if (!other && window.CSS && CSS.highlights)
