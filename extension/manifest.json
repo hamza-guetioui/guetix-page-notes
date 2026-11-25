@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Guetix Page Notes",
   "short_name": "Page Notes",
-  "version": "1.4.0",
-  "description": "Sticky notes for any website. Pin anywhere, highlight text, drag freely — every note comes back when you return and lives in one visual list.",
+  "version": "1.5.0",
+  "description": "Sticky notes for any website. Pin anywhere, highlight text, every note comes back when you return and lives in one visual list.",
   "homepage_url": "https://guetix.com/extensions/page-notes-extension",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": {

@@ -59,7 +59,7 @@ context/          project docs (read before working)
 ## Git workflow
 
 - `main` = released code (protected; PR only). Work on short branches (`feat/…`, `fix/…`).
-- Current work: branch **`feat/popup-redesign`** (big UI redesign, v1.4.0, uncommitted until the owner approves).
+- Current version **1.5.0** on `dev` (redesign); `main` still on 1.3.x until the release PR `dev` → `main`.
 - **Never commit, push, open a PR, tag or publish without the owner's explicit approval.**
 - Releases: bump `extension/manifest.json` + `package.json` + `CHANGELOG.md`, merge PR, tag `v*` on `main`
   (GitHub Actions builds the zip). The guetix.com site serves a copy of the zip at
