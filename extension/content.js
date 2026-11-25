@@ -287,17 +287,17 @@
     ".dock.st-tile>.dk:hover{background:var(--gx-hover2)}",
     // orb: a round logo; hovering it (or keyboard focus, or a click to pin it) fans the tools out in a quarter circle
     // toward the page (--s start angle, --d direction, per side). Tools: eye / + Note / options.
-    ".dock.st-orb:not(.placing){--s:180deg;--d:1;width:46px;height:46px;padding:0;gap:0;border-radius:50%;justify-content:center}",
+    ".dock.st-orb:not(.placing){--s:180deg;--d:1;width:38px;height:38px;padding:0;gap:0;border-radius:50%;justify-content:center}",
     ".dock.st-orb:not(.placing).left{--s:0deg;--d:-1}.dock.st-orb:not(.placing).down{--d:-1}.dock.st-orb:not(.placing).left.down{--d:1}",
     ".dock.st-orb:not(.placing)>.vr,.dock.st-orb:not(.placing) .pos{display:none}.dock.st-orb:not(.placing)>.nav,.dock.st-orb:not(.placing)>.split{display:contents}",
-    ".dock.st-orb:not(.placing) .brand{width:46px;height:46px;padding:0;border-radius:50%}.dock.st-orb:not(.placing) .mark{font-size:22px}",
-    ".dock.st-orb:not(.placing) .cnt{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;font-size:10.5px;line-height:18px;box-shadow:0 0 0 2px var(--gx-surface)}",
-    ".dock.st-orb:not(.placing) :is(.new,.caret,.pr,.nx,.dk){position:absolute;left:50%;top:50%;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--gx-surface);color:var(--gx-muted);box-shadow:var(--gx-sh-dock),inset 0 0 0 1px var(--gx-border);opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.4);transition:transform .16s ease-in,opacity .12s}",
-    ".dock.st-orb:not(.placing) .new{width:46px;height:46px;font-size:0;gap:0;background:" + ORANGE_GRAD + ";color:#fff;box-shadow:0 4px 14px rgba(255,91,20,.35),inset 0 0 0 1px rgba(200,60,5,.3)}.dock.st-orb:not(.placing) .new svg{width:19px;height:19px}",
+    ".dock.st-orb:not(.placing) .brand{width:38px;height:38px;padding:0;border-radius:50%}.dock.st-orb:not(.placing) .mark{font-size:18px}",
+    ".dock.st-orb:not(.placing) .cnt{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px var(--gx-surface)}",
+    ".dock.st-orb:not(.placing) :is(.new,.caret,.pr,.nx,.dk){position:absolute;left:50%;top:50%;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--gx-surface);color:var(--gx-muted);box-shadow:var(--gx-sh-dock),inset 0 0 0 1px var(--gx-border);opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.4);transition:transform .16s ease-in,opacity .12s}",
+    ".dock.st-orb:not(.placing) .new{width:38px;height:38px;font-size:0;gap:0;background:" + ORANGE_GRAD + ";color:#fff;box-shadow:0 4px 14px rgba(255,91,20,.35),inset 0 0 0 1px rgba(200,60,5,.3)}.dock.st-orb:not(.placing) .new svg{width:16px;height:16px}.dock.st-orb:not(.placing) .dk svg{width:14px;height:14px}",
     ".dock.st-orb:not(.placing) .caret{width:26px;height:26px;background:" + ORANGE + ";color:#fff;box-shadow:0 2px 8px rgba(255,91,20,.3)}",
     // only the 3 key tools: show/hide notes · + Note · options (the rest lives in the options menu or the shortcuts)
     ".dock.st-orb:not(.placing) :is(.pr,.nx,.caret,.fd,.cl){display:none}",
-    ".dock.st-orb .eye{--p:0;--r:72px}.dock.st-orb .new{--p:.5;--r:72px}.dock.st-orb .mo{--p:1;--r:72px}",
+    ".dock.st-orb .eye{--p:0;--r:56px}.dock.st-orb .new{--p:.5;--r:56px}.dock.st-orb .mo{--p:1;--r:56px}",
     ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) :is(.new,.caret,.pr,.nx,.dk){opacity:1;pointer-events:auto;transform:translate(-50%,-50%) rotate(calc(var(--s) + var(--d) * var(--p) * 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--s) + var(--d) * var(--p) * 90deg)));transition:transform .34s cubic-bezier(.3,1.35,.5,1) calc(var(--p) * 70ms),opacity .15s calc(var(--p) * 70ms)}",
     // hover: the tool grows a little, lifts, gets a blue ring + tint (+ Note glows warmer); quick, no stagger delay
     ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) :is(.new,.dk):hover{transform:translate(-50%,-50%) rotate(calc(var(--s) + var(--d) * var(--p) * 90deg)) translateX(var(--r)) rotate(calc(-1 * (var(--s) + var(--d) * var(--p) * 90deg))) translateY(-2px) scale(1.14);transition:transform .2s cubic-bezier(.3,1.5,.5,1),background .15s,color .15s,box-shadow .2s}",
@@ -305,8 +305,8 @@
     ".dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .new:hover{box-shadow:0 8px 22px rgba(255,91,20,.5),0 0 0 4px rgba(255,91,20,.18)}.dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .dk:active,.dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .new:active{filter:brightness(.95)}",
     ":host([data-theme=dark]) .dock.st-orb:not(.placing):is(.hot,.open,:has(:focus-visible),:has(>.menu.open)) .dk:hover{box-shadow:0 6px 16px rgba(0,0,0,.4),inset 0 0 0 1.5px rgba(110,152,255,.55)}",
     // invisible disc under the open orb: the pointer can cross the gaps between tools without closing it
-    ".dock.st-orb:not(.placing)::before{content:'';position:absolute;left:50%;top:50%;width:250px;height:250px;margin:-125px 0 0 -125px;border-radius:50%;pointer-events:none}.dock.st-orb:not(.placing).hot::before{pointer-events:auto}",
-    ".dock.st-orb .menu{bottom:0;right:calc(100% + 80px)}.dock.st-orb.down .menu{top:0;bottom:auto}.dock.st-orb.left .menu{left:calc(100% + 80px);right:auto}",
+    ".dock.st-orb:not(.placing)::before{content:'';position:absolute;left:50%;top:50%;width:210px;height:210px;margin:-105px 0 0 -105px;border-radius:50%;pointer-events:none}.dock.st-orb:not(.placing).hot::before{pointer-events:auto}",
+    ".dock.st-orb .menu{bottom:0;right:calc(100% + 64px)}.dock.st-orb.down .menu{top:0;bottom:auto}.dock.st-orb.left .menu{left:calc(100% + 64px);right:auto}",
     // orb menu: a rounded quick panel - actions as a 2x2 grid of round icon tiles, springing out of the orb
     ".dock.st-orb .menu{width:236px;min-width:0;flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px;border-radius:22px;transform-origin:right bottom;animation:gx-orb .26s cubic-bezier(.3,1.35,.5,1)}",
     ".dock.st-orb.left .menu{transform-origin:left bottom}.dock.st-orb.down .menu{transform-origin:right top;animation-name:gx-orb}.dock.st-orb.left.down .menu{transform-origin:left top}",
