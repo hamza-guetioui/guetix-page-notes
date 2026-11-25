@@ -288,7 +288,9 @@
     // orb: a round logo; hovering it (or keyboard focus, or a click to pin it) fans the tools out in a quarter circle
     // toward the page (--s start angle, --d direction, per side). Tools: eye / + Note / options.
     ".dock.st-orb:not(.placing){--s:180deg;--d:1;width:38px;height:38px;padding:0;gap:0;border-radius:50%;justify-content:center}",
-    ".dock.st-orb:not(.placing).left{--s:0deg;--d:-1}.dock.st-orb:not(.placing).down{--d:-1}.dock.st-orb:not(.placing).left.down{--d:1}",
+    ".dock.st-orb:not(.placing).left{--s:0deg;--d:-1}.dock.st-orb:not(.placing).down:not(.mid){--d:-1}.dock.st-orb:not(.placing).left.down:not(.mid){--d:1}",
+    // room above and below (.mid): the fan points straight into the page, centered on the orb's level
+    ".dock.st-orb:not(.placing).mid{--s:135deg;--d:1}.dock.st-orb:not(.placing).left.mid{--s:45deg;--d:-1}",
     ".dock.st-orb:not(.placing)>.vr,.dock.st-orb:not(.placing) .pos{display:none}.dock.st-orb:not(.placing)>.nav,.dock.st-orb:not(.placing)>.split{display:contents}",
     ".dock.st-orb:not(.placing) .brand{width:38px;height:38px;padding:0;border-radius:50%}.dock.st-orb:not(.placing) .mark{font-size:18px}",
     ".dock.st-orb:not(.placing) .cnt{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px var(--gx-surface)}",
@@ -2332,6 +2334,7 @@
     var down = innerHeight - bottom < innerHeight / 2; // toolbar in the upper half → open downward
     var h = dock.root.offsetHeight || 32;
     dock.root.classList.toggle("down", down);
+    dock.root.classList.toggle("mid", bottom > 120 && innerHeight - bottom - h > 120); // free space on both sides (orb fan)
     [hint, toast].forEach(function (n) {
       n.style.left = side === "l" ? DOCK_GAP + "px" : "auto";
       n.style.right = side === "r" ? DOCK_GAP + "px" : "auto";
