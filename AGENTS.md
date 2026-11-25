@@ -9,7 +9,7 @@
 **Guetix Page Notes** — a Chrome (MV3) extension by Hamza Guetioui: sticky notes on any website
 (pin anywhere, highlight text, stick to an element), one "All notes" dashboard, Guides, Settings,
 light/dark theme, 10 languages. Store: https://chromewebstore.google.com/detail/odjgbkgepfbfmjebffcohkkheonhhdcm ·
-Landing: https://guetix.com/components/page-notes-extension · MIT.
+Landing: https://guetix.com/extensions/page-notes-extension · MIT.
 
 ## Stack
 

@@ -18,7 +18,7 @@ const OUTDIR = path.join(process.env.PNV_WORK || path.join(require('os').tmpdir(
   const vp = vertical ? { width: 720, height: 1280 } : { width: 1280, height: 720 };
   const p = await b.newPage({ viewport: vp, deviceScaleFactor: 1.5 });
   p.on('pageerror', (e) => console.log('pageerror', e.message));
-  await p.goto(`${SITE}/components/page-notes-extension/tutorial?render=1&v=${id}`, { waitUntil: 'load', timeout: 180000 });
+  await p.goto(`${SITE}/extensions/page-notes-extension/tutorial?render=1&v=${id}`, { waitUntil: 'load', timeout: 180000 });
   await p.addStyleTag({ content: 'nextjs-portal{display:none!important}' });
   await p.waitForFunction(() => window.__pnTotal, null, { timeout: 180000 });
   await p.evaluate(() => document.fonts.ready);

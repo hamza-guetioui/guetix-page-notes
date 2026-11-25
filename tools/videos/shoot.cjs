@@ -11,7 +11,7 @@ const SITES = {
   shop: { url: 'http://shoply.com/', show: 'shoply.com/p/aurora-x2', title: 'Aurora X2 Headphones · Shoply', fav: '#f59e0b' },
   video: { url: 'http://streamly.tv/', show: 'streamly.tv/watch?v=productive', title: 'How to Be So Productive it Feels Illegal · Streamly', fav: '#ff0033' },
   home: { url: 'http://guetix.com/', show: 'guetix.com', title: 'Guetix · Hamza Guetioui', fav: '#22c55e', wait: 5200 },
-  docs: { url: 'http://guetix.com/components/page-notes-extension', show: 'guetix.com/components/page-notes-extension', title: 'Page Notes Extension · Guetix UI', fav: '#22c55e', wait: 3500 },
+  docs: { url: 'http://guetix.com/extensions/page-notes-extension', show: 'guetix.com/extensions/page-notes-extension', title: 'Page Notes Extension · Guetix UI', fav: '#22c55e', wait: 3500 },
 };
 const showTab = (S, k, extra = {}) => S.tab({ url: SITES[k].show, title: SITES[k].title, fav: SITES[k].fav, ...extra });
 

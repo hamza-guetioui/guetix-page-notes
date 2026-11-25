@@ -16,7 +16,7 @@
     return document.getElementById(id);
   };
   var manifest = chrome.runtime.getManifest();
-  var HOW_URL = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
+  var HOW_URL = (manifest.homepage_url || "https://guetix.com/extensions/page-notes-extension") + "#how-it-works";
   // side panel (vs dropdown popup): stays open, follows the active tab, fills the panel width
   var inPanel = !(chrome.extension.getViews && chrome.extension.getViews({ type: "popup" }).indexOf(window) >= 0);
   var close = inPanel ? function () {} : function () { window.close(); };

@@ -36,7 +36,7 @@ const shot = (title, sub, inner) => `<html><body style="margin:0;width:1280px;he
   const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
   const S = [
     ['1-sticky-notes-any-website', 'Sticky notes on any website', 'Click anywhere, type, done. They stay where you put them.', browser(grab('how-it-works', 'main', 28.5, 'f1'), 'streamly.tv/watch?v=productive', { badge: 2 })],
-    ['2-highlight-text', 'Highlight text, add a note', 'Select a sentence — it is highlighted with your note right next to it.', browser(grab('how-it-works', 'main', 52.5, 'f2'), 'guetix.com/components/page-notes-extension', { badge: 1 })],
+    ['2-highlight-text', 'Highlight text, add a note', 'Select a sentence — it is highlighted with your note right next to it.', browser(grab('how-it-works', 'main', 52.5, 'f2'), 'guetix.com/extensions/page-notes-extension', { badge: 1 })],
     ['3-review-any-site', 'Review any website — even your own', 'Leave feedback on the page. Notes come back on your next visit.', browser(grab('how-it-works', 'main', 76.5, 'f3'), 'guetix.com', { badge: 3 })],
     ['4-extension-bar', 'Everything in one click', 'This page, this site, everywhere — filter, mark done, jump to a note.', browser(grab('extension-bar', 'main', 8, 'f4'), 'app.pulse.io/acme/overview', { badge: 2, popup: grab('extension-bar', 'popup', 8, 'f4p') })],
     ['5-all-notes', 'All your notes in one place', 'Search, filter and edit every note — with a snapshot of where it sits.', browser(grab('all-notes', 'main', 3, 'f5'), 'chrome-extension://page-notes/notes.html')],

@@ -23,7 +23,7 @@
   var KEY_LABELS = { "place-note": "cPlace", "place-element": "cEl", "place-highlight": "cHl", "toggle-notes": "cToggle", _execute_action: "cPopup" };
 
   $("ver").textContent = manifest.version;
-  $("how").href = (manifest.homepage_url || "https://guetix.com/components/page-notes-extension") + "#how-it-works";
+  $("how").href = (manifest.homepage_url || "https://guetix.com/extensions/page-notes-extension") + "#how-it-works";
 
   var toastT;
   /**
