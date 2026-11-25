@@ -11,6 +11,7 @@
  *   - storage: one record per page (key from PN.keyFor, see shared.js) plus global "settings"
  *   - anchoring: free (document px), element (CSS selector) or highlighted text (text + context)
  *   - notes: build, drag, resize, create, snapshot, delete (with Undo)
+ *     (snapshot retaken after a text or colour change; missing ones filled in when the tab is visible)
  *   - placing mode, dock (toolbar), toast, visibility, focus / deep links (#gx-note=<id>)
  *   - messages from background.js and observers that keep notes in place as the page changes
  *
@@ -547,9 +548,10 @@
     chrome.storage.local.get("settings", function (s) {
       // inspect mode keeps its own notes: pick the key before reading the page
       PN.setDev(s.settings && s.settings.dev);
-      key = PN.keyFor(location.href);
-      chrome.storage.local.get(key, function (r) {
-        page = r[key] || null;
+      var k = (key = PN.keyFor(location.href));
+      chrome.storage.local.get(k, function (r) {
+        if (k !== key) return; // the page changed (SPA navigation) while reading: a newer load() owns it
+        page = r[k] || null;
         settings = s.settings || {};
         applyTheme();
         visible = wantVisible();
@@ -557,9 +559,44 @@
         renderAll();
         checkFocus();
         checkHash();
+        fillShots();
       });
     });
   }
+  var fillT = 0;
+  /**
+   * Notes on screen with no snapshot get one: older notes, and notes recoloured in "All my notes"
+   * (the dashboard drops the stale picture because it cannot take a new one).
+   */
+  function fillShots() {
+    clearTimeout(fillT);
+    fillT = setTimeout(function () {
+      if (!alive() || !page || document.hidden || settings.snapshots === false) return;
+      var ns = page.notes;
+      chrome.storage.local.get(
+        ns.map(function (n) {
+          return PN.SHOT + n.id;
+        }),
+        function (r) {
+          ns.filter(function (n) {
+            var k = nodes[n.id];
+            return !r[PN.SHOT + n.id] && k && !k.root.contains(shadow.activeElement); // not while typing in it
+          }).reduce(function (q, n) {
+            return q.then(function () {
+              return shootNote(n).then(function () {
+                return new Promise(function (res) {
+                  setTimeout(res, 600); // Chrome allows ~2 tab captures per second
+                });
+              });
+            });
+          }, Promise.resolve());
+        },
+      );
+    }, 1500); // let the page settle first
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) fillShots();
+  });
   /** Return this page's record, creating an empty one if needed. @returns {Object} */
   function ensurePage() {
     if (!page) page = { url: url, title: document.title, favicon: favicon(), notes: [], updatedAt: Date.now() };
@@ -649,6 +686,7 @@
       page = nv || null;
       renderAll();
       count();
+      fillShots();
     }
     if (ch.focus && ch.focus.newValue) checkFocus();
   });
@@ -1001,6 +1039,13 @@
   function build(n) {
     var root = el("div", "gxn-note");
     root.setAttribute("role", "note");
+    root._shotColor = n.color; // colour in the saved snapshot (retaken when it changes)
+    // done recolouring (pointer left the note) → retake the snapshot so it shows the new colour
+    root.addEventListener("mouseleave", function () {
+      if (n.color !== root._shotColor) setTimeout(function () {
+        if (!root.matches(":hover") && !root.contains(shadow.activeElement)) shootNote(n);
+      }, 250);
+    });
     root.style.background = noteBg(n);
     root.style.setProperty("--r", (((n.createdAt || 0) % 7) - 3) * 0.8 + "deg");
     var bar = el("div", "gxn-bar");
@@ -1123,7 +1168,7 @@
         }
       }, 300);
       // finished writing → retake the snapshot so it shows the note with its text
-      if (n.text !== root._shotText) setTimeout(function () {
+      if (n.text !== root._shotText || n.color !== root._shotColor) setTimeout(function () {
         if (shadow.activeElement !== text) shootNote(n);
       }, 250);
     };
@@ -1250,16 +1295,24 @@
   }
   var rpT = 0;
   var lastIndexAt = 0;
-  /** Debounced reposition(). @param {boolean} [contentChanged] - also rebuild the text index */
+  /**
+   * Throttled reposition() (at most every 140ms). A plain debounce never fired on pages that change all the
+   * time (feeds, players), so their notes and highlights stayed lost.
+   * @param {boolean} [contentChanged] - also rebuild the text index
+   */
   function scheduleReposition(contentChanged) {
     if (contentChanged) indexDirty = true;
-    clearTimeout(rpT);
+    if (rpT) return;
     rpT = setTimeout(function () {
       requestAnimationFrame(function () {
-        // re-find highlighted text at most ~once a second
-        if (indexDirty && page && page.notes.some(function (n) { return n.hl; }) && Date.now() - lastIndexAt > 900) {
-          lastIndexAt = Date.now();
-          resolveHighlights();
+        rpT = 0;
+        if (indexDirty && page && page.notes.some(function (n) { return n.hl; })) {
+          // re-find highlighted text at most ~once a second; retry later if it is too soon
+          var wait = 900 - (Date.now() - lastIndexAt);
+          if (wait <= 0) {
+            lastIndexAt = Date.now();
+            resolveHighlights();
+          } else setTimeout(scheduleReposition, wait);
         }
         reposition();
       });
@@ -1416,10 +1469,11 @@
   /** @param {Object} n - note @returns {Promise<void>} */
   function shootNote(n) {
     var k = nodes[n.id];
-    if (!k || !visible) return Promise.resolve();
+    if (!k || !visible || document.hidden) return Promise.resolve(); // hidden tab: the capture would grab another tab
     var r = k.root.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return Promise.resolve(); // off screen: keep the old one
     k.root._shotText = n.text;
+    k.root._shotColor = n.color;
     return shoot(n.id, r.left + r.width / 2, r.top + r.height / 2);
   }
   /** Ask the worker for a cropped screenshot around the spot (shown in “All my notes”). */
@@ -2607,6 +2661,7 @@
   var mo = new MutationObserver(function (list) {
     if (!alive()) return teardown();
     if (!host.isConnected) document.documentElement.appendChild(host);
+    if (!page || !page.notes.length) return; // nothing to place: skip the work on busy pages
     var content = list.some(function (r) {
       return r.type === "childList" || r.type === "characterData";
     });
@@ -2619,14 +2674,17 @@
     }).observe(document.body);
   addEventListener("pagehide", flush);
 
-  // SPA navigation + layout changes nothing told us about (CSS transitions, hover menus…)
-  var tick = setInterval(function () {
-    if (!alive()) return teardown();
-    var now = PN.normUrl(location.href);
-    if (now === url) {
-      if (visible && page && page.notes.length && !document.hidden) reposition();
-      return;
+  /**
+   * SPA navigation: when the URL names another page, save this one and load the new page's notes.
+   * @returns {boolean} true when the page changed
+   */
+  function checkUrl() {
+    if (!alive()) {
+      teardown();
+      return true;
     }
+    var now = PN.normUrl(location.href);
+    if (now === url) return false;
     flush();
     stopPlacing();
     url = now;
@@ -2637,6 +2695,18 @@
     peek = false;
     renderAll();
     load();
+    return true;
+  }
+  // right away when the page tells us (Navigation API, back/forward); the timer catches the rest
+  if (window.navigation) navigation.addEventListener("navigatesuccess", checkUrl);
+  addEventListener("popstate", checkUrl);
+  // also: layout changes nothing told us about (CSS transitions, hover menus…)
+  var tick = setInterval(function () {
+    if (checkUrl()) return;
+    if (visible && page && page.notes.length && !document.hidden) {
+      if (indexDirty) scheduleReposition();
+      else reposition();
+    }
   }, 800);
 
   /** The extension was reloaded/updated: this copy is disconnected - remove it cleanly. */
@@ -2647,6 +2717,8 @@
       mo.disconnect();
     } catch (e) {}
     clearInterval(tick);
+    if (window.navigation) navigation.removeEventListener("navigatesuccess", checkUrl);
+    removeEventListener("popstate", checkUrl);
     host.remove();
     var other = document.querySelector("gx-page-notes:not([data-gx-stale])"); // a newer copy owns the highlights now
     if (!other && window.CSS && CSS.highlights)

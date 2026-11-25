@@ -591,9 +591,18 @@
       });
     }
     chrome.storage.onChanged.addListener(function () {
-      chrome.storage.local.get(null, render);
+      loadAll();
     });
   });
+  /** Reads all storage and renders it (loading overlay when slow, Try again on failure). */
+  function loadAll() {
+    PN.withLoader(function (done, fail) {
+      chrome.storage.local.get(null).then(function (s) {
+        render(s);
+        done();
+      }).catch(fail);
+    });
+  }
   /**
    * Reads the active tab, fills the header, then renders the data.
    * @param {Array<Object>} tabs - result of chrome.tabs.query
@@ -610,7 +619,7 @@
       if (tab.favIconUrl && /^https?:/.test(tab.favIconUrl)) $("fav").src = tab.favIconUrl;
       else $("fav").style.display = "none";
     }
-    chrome.storage.local.get(null, render);
+    loadAll();
   }
 
   // ---------- Event handlers ----------

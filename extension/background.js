@@ -3,6 +3,7 @@
  * Overview:
  * - Loads shared.js (the PN helper namespace) with importScripts.
  * - On install: builds the right-click menu and opens the welcome page (notes.html?welcome=1).
+ * - On install/update/startup: moves page records to their current normalized key (PN.rekey).
  * - Context menu + keyboard commands: forwarded to the content script (content.js) of the active tab.
  * - Fonts: reads the bundled toolbar fonts and sends them as base64 to the content script.
  * - Snapshots: captures the visible tab, crops a band around a note, stores it under PN.SHOT + id.
@@ -26,6 +27,17 @@ function applyPanelMode() {
 }
 applyPanelMode();
 chrome.runtime.onStartup.addListener(applyPanelMode); // setPopup is not kept across browser restarts
+
+/** Move page records to the key PN.normUrl gives now (after an update changed its rules, or an old import). */
+function rekeyPages() {
+  chrome.storage.local.get(null, function (s) {
+    var r = PN.rekey(s);
+    if (r.remove.length) chrome.storage.local.set(r.set, function () {
+      if (!chrome.runtime.lastError) chrome.storage.local.remove(r.remove); // only once the new copies are saved
+    });
+  });
+}
+chrome.runtime.onStartup.addListener(rekeyPages);
 chrome.storage.onChanged.addListener(function (c) {
   if (c.settings) {
     applyPanelMode();
@@ -51,6 +63,7 @@ function devMenus() {
  */
 chrome.runtime.onInstalled.addListener(function (details) {
   applyPanelMode();
+  rekeyPages();
   chrome.contextMenus.removeAll(function () {
     chrome.contextMenus.create({ id: "pn-add", title: "Pin a Page Note here", contexts: ["page", "link", "image", "video", "audio", "frame", "editable"], documentUrlPatterns: ["http://*/*", "https://*/*"] });
     chrome.contextMenus.create({ id: "pn-hl", title: "Highlight “%s” + note", contexts: ["selection"], documentUrlPatterns: ["http://*/*", "https://*/*"] });

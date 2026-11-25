@@ -4,7 +4,7 @@
  *  - Routing between All notes, Guides (#guides) and Settings (#settings).
  *  - Helpers (DOM builder, toast, storage save, filters).
  *  - Note cards, the sticky-note editor, render() of the grid.
- *  - Controls: tabs, color / site / sort / search filters, footer, settings nav.
+ *  - Controls: tabs, color / search filters, site + sort dropdowns (dropdown()), footer, settings nav.
  *  - Select mode: share, download as Markdown, bulk actions, delete confirm.
  *
  * Globals: PN (from shared.js: storage prefixes, colors, formatting helpers),
@@ -241,12 +241,14 @@
   }
   // action icons (static markup only)
   var AI = {
-    "a-open": '<path d="M9 3h4v4M13 3 7.5 8.5M11.5 9.5V13h-8V5H7"/>',
-    "a-done": '<path d="m3.5 8.5 3 3 6-7"/>',
-    "a-reopen": '<path d="M3 8a5 5 0 1 0 1.5-3.6M3 2.5V5h2.5"/>',
-    "a-link": '<path d="M6.7 9.3 9.3 6.7M5.6 7.5 4 9.1a2.3 2.3 0 0 0 3.2 3.2l1.6-1.6M10.4 8.5 12 6.9a2.3 2.3 0 0 0-3.2-3.2L7.2 5.3"/>',
-    "a-edit": '<path d="M10.5 3 13 5.5 6 12.5H3.5V10z"/>',
-    "a-del": '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
+    "a-open": '<path d="M7 3H4.5A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5V9M10 3h3v3M13 3 7.5 8.5"/>',
+    "a-done": '<circle cx="8" cy="8" r="5.5"/><path d="m5.7 8.1 1.6 1.6 3-3.3"/>',
+    "a-reopen": '<path d="M3 8a5 5 0 1 0 1.6-3.7L3 5.8M3 3v2.8h2.8"/>',
+    "a-link": '<path d="M6.7 8.8a3 3 0 0 0 4.5.3l1.8-1.8a3 3 0 0 0-4.2-4.2l-1 1M9.3 7.2a3 3 0 0 0-4.5-.3L3 8.7a3 3 0 0 0 4.2 4.2l1-1"/>',
+    "a-edit": '<path d="M8.5 13h4.5M11 2.6a1.7 1.7 0 0 1 2.4 2.4L6 12.4l-3 .7.7-3z"/>',
+    "a-wrap": '<path d="M2.5 4h11M2.5 8h8.5a2 2 0 0 1 0 4H8.5M10 10.5 8.5 12l1.5 1.5M2.5 12h3"/>',
+    "a-nowrap": '<path d="M2.5 4h11M2.5 8h11M11 5.8 13.5 8 11 10.2M2.5 12h6"/>',
+    "a-del": '<path d="M2.8 4.5h10.4M6.2 4.5V3.3c0-.4.4-.8.8-.8h2c.4 0 .8.4.8.8v1.2M4.2 4.5l.6 8a1 1 0 0 0 1 1h4.4a1 1 0 0 0 1-1l.6-8M6.8 7v3.8M9.2 7v3.8"/>',
   };
   /**
    * Round site icon: the favicon, or the first letter of the site when there is none.
@@ -282,6 +284,37 @@
     if (n.hl) box.append(h("span", "npill np-y", tr("hl")));
   }
   /**
+   * Status dropdown pill (Open / Urgent / Done) for the preview and sticky cards.
+   * @param {Object} p - the page
+   * @param {Object} n - the note
+   * @returns {HTMLButtonElement}
+   */
+  function statusBtn(p, n) {
+    var cur = statusOf(n);
+    var st = h("button", "vst np-" + cur[2]);
+    st.type = "button";
+    st.setAttribute("aria-haspopup", "menu");
+    st.setAttribute("aria-expanded", "false");
+    st.setAttribute("aria-label", tr("fltStatus") + ": " + tr(cur[1]));
+    st.append(h("span", "", tr(cur[1])));
+    st.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>');
+    st.onclick = function () {
+      popMenu(
+        st,
+        STATUS.map(function (s) {
+          return { label: tr(s[1]), icon: '<circle cx="8" cy="8" r="3.5"/>', cls: "so-" + s[2], checked: s === cur, fn: function () {
+            if (s === cur) return;
+            n.done = s[0] === "done";
+            if (!n.done) n.pri = s[0] === "urgent" ? "urgent" : "";
+            savePage(p); // keeps the date → the list order stays the same
+          } };
+        }),
+        tr("fltStatus"),
+      );
+    };
+    return st;
+  }
+  /**
    * Page title link that opens the page at the note.
    * @param {Object} e - { page, note, i } entry
    * @param {string} cls - class name
@@ -309,6 +342,7 @@
     c.setAttribute("data-id", n.id);
     if (n.done) c.setAttribute("data-done", "");
     if (n.pri === "urgent") c.classList.add("urgent");
+    if (n.nowrap) c.classList.add("nowrap");
     var pk = h("span", "pick");
     pk.setAttribute("role", "checkbox");
     pk.setAttribute("aria-checked", String(!!picked[n.id]));
@@ -337,72 +371,289 @@
    * @param {HTMLElement} c - the card
    * @param {Object} e - { page, note, i } entry
    */
-  function actions(c, e) {
-    var p = e.page;
-    var n = e.note;
-    var acts = h("div", "acts");
-    var act = function (key, cls, fn) {
-      var b = h("button", cls);
+  function actions(c, e, drawer) {
+    var acts = h("div", drawer ? "acts drawer" : "acts");
+    var box = acts;
+    if (drawer) {
+      // drawer: a "…" button opens a row of actions above it, growing to the left (inert while closed: no tab stops)
+      box = h("div", "dr");
+      box.inert = true;
+      var tog = h("button", "tog");
+      tog.type = "button";
+      tog.title = tr("vwMore");
+      tog.setAttribute("aria-label", tr("vwMore"));
+      tog.setAttribute("aria-expanded", "false");
+      tog.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path class="x" d="m4.5 4.5 7 7m0-7-7 7"/><g class="d"><circle cx="3.5" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.5" cy="8" r="1.2"/></g></svg>'; // static markup only
+      tog.onclick = function () {
+        drawerOpen(acts, !acts.classList.contains("open"));
+      };
+      acts.onkeydown = function (ev) {
+        if (ev.key === "Escape" && acts.classList.contains("open")) {
+          ev.stopPropagation();
+          drawerOpen(acts, false);
+          tog.focus();
+        }
+      };
+      acts.append(box, tog);
+    }
+    noteActs(e).forEach(function (a) {
+      if (drawer && (a.cls === "a-done" || a.cls === "a-reopen")) return; // status lives in the card's dropdown
+      var b = h("button", a.cls);
       b.type = "button";
-      b.title = tr(key);
-      b.setAttribute("aria-label", tr(key));
-      b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + AI[cls] + "</svg>"); // static markup only
-      b.onclick = fn;
-      acts.appendChild(b);
-      return b;
-    };
-    act("vwOpen", "a-open", function () {
-      open(p, n);
-    });
-    act(n.done ? "vwReopen" : "vwDone", n.done ? "a-reopen" : "a-done", function () {
-      n.done = !n.done; // status change keeps the date → the list order stays the same
-      savePage(p);
-      say(n.done ? "Marked as done" : "Reopened");
-    });
-    var cl = act("vwCopy", "a-link", function () {
-      navigator.clipboard.writeText(PN.noteLink(p.url, n.id)).then(
-        function () {
-          cl.classList.add("ok");
-          say("Link to this note copied");
-          setTimeout(function () {
-            cl.classList.remove("ok");
-          }, 1600);
-        },
-        function () {
-          say("Couldn't copy - clipboard blocked");
-        },
-      );
-    });
-    act("vwEdit", "a-edit", function () {
-      openEditor(p, n);
-    });
-    act("vwDel", "a-del", function () {
-      askDelete(1, function () {
-        p.notes = p.notes.filter(function (x) {
-          return x.id !== n.id;
-        });
-        chrome.storage.local.remove(PN.SHOT + n.id);
-        savePage(p);
-        say("Note deleted");
-      });
+      if (drawer) b.dataset.tip = tr(a.key); // CSS tooltip
+      else b.title = tr(a.key);
+      b.setAttribute("aria-label", tr(a.key));
+      b.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + AI[a.cls] + "</svg>"); // static markup only
+      b.onclick = function () {
+        a.fn(b);
+      };
+      box.appendChild(b);
     });
     c.appendChild(acts);
   }
   /**
-   * Top row: site icon + short name · time.
+   * Opens or closes a sticky card's action drawer; only one is open at a time.
+   * @param {HTMLElement} acts - the .acts.drawer element
+   * @param {boolean} on
+   */
+  function drawerOpen(acts, on) {
+    if (on) document.querySelectorAll(".acts.open").forEach(function (o) {
+      if (o !== acts) drawerOpen(o, false);
+    });
+    acts.classList.toggle("open", on);
+    acts.querySelector(".dr").inert = !on;
+    acts.querySelector(".tog").setAttribute("aria-expanded", String(on));
+  }
+  // a click outside an open drawer closes it
+  document.addEventListener("pointerdown", function (ev) {
+    document.querySelectorAll(".acts.open").forEach(function (o) {
+      if (!o.contains(ev.target)) drawerOpen(o, false);
+    });
+  });
+  /**
+   * The note actions shared by the hover bar and the preview card's "…" menu.
+   * @param {Object} e - { page, note, i } entry
+   * @returns {Array<{key: string, cls: string, fn: function(HTMLElement=)}>} i18n key, icon (AI) key, action (gets the button)
+   */
+  function noteActs(e) {
+    var p = e.page;
+    var n = e.note;
+    return [
+      { key: "vwOpen", cls: "a-open", fn: function () {
+        open(p, n);
+      } },
+      { key: n.done ? "vwReopen" : "vwDone", cls: n.done ? "a-reopen" : "a-done", fn: function () {
+        n.done = !n.done; // status change keeps the date → the list order stays the same
+        savePage(p);
+        say(n.done ? "Marked as done" : "Reopened");
+      } },
+      { key: "vwCopy", cls: "a-link", fn: function (b) {
+        navigator.clipboard.writeText(PN.noteLink(p.url, n.id)).then(
+          function () {
+            if (b) b.classList.add("ok");
+            say("Link to this note copied");
+            setTimeout(function () {
+              if (b) b.classList.remove("ok");
+            }, 1600);
+          },
+          function () {
+            say("Couldn't copy - clipboard blocked");
+          },
+        );
+      } },
+      { key: n.nowrap ? "vwWrap" : "vwNoWrap", cls: n.nowrap ? "a-wrap" : "a-nowrap", fn: function () {
+        n.nowrap = !n.nowrap; // long lines: wrap (default) or keep them and scroll sideways
+        savePage(p);
+      } },
+      { key: "vwEdit", cls: "a-edit", fn: function () {
+        openEditor(p, n);
+      } },
+      { key: "vwDel", cls: "a-del", fn: function () {
+        askDelete(1, function () {
+          p.notes = p.notes.filter(function (x) {
+            return x.id !== n.id;
+          });
+          chrome.storage.local.remove(PN.SHOT + n.id);
+          savePage(p);
+          say("Note deleted");
+        });
+      } },
+    ];
+  }
+  // status of a note: [value, i18n key, pill class]; Open/Urgent reopen it, Done keeps the urgent flag
+  var STATUS = [["open", "open", "o"], ["urgent", "urgent", "r"], ["done", "done", "g"]];
+  /**
+   * @param {Object} n - note
+   * @returns {Array} its STATUS row
+   */
+  function statusOf(n) {
+    return STATUS[n.done ? 2 : n.pri === "urgent" ? 1 : 0];
+  }
+  var popEl = null; // the open popup menu (one at a time)
+  /**
+   * Closes the popup menu.
+   * @param {boolean} [refocus] - move focus back to the button that opened it
+   */
+  function closePop(refocus) {
+    if (!popEl) return;
+    var a = popEl._anchor;
+    popEl.remove();
+    popEl = null;
+    a.setAttribute("aria-expanded", "false");
+    if (refocus) a.focus();
+  }
+  /**
+   * Small popup menu under (or above) a button, fixed to the viewport so card overflow can't clip it.
+   * Clicking the same button again closes it.
+   * @param {HTMLElement} anchor - the button
+   * @param {Array<{label: string, icon: string, fn: function, checked: (boolean|undefined), cls: (string|undefined), color: (string|undefined)}>} items
+   *   icon = static SVG markup; checked set → radio item; cls = extra row class ("danger", "so-g"…);
+   *   color set → the menu is a titled row of colour swatches instead (label = swatch name)
+   * @param {string} label - menu name for screen readers
+   * @param {boolean} [end] - align with the button's end edge instead of its start
+   * @param {boolean} [up] - open above the button (below only when there is no room above)
+   */
+  function popMenu(anchor, items, label, end, up) {
+    var same = popEl && popEl._anchor === anchor;
+    closePop(false);
+    if (same) return;
+    var m = h("div", "ddmenu pop");
+    m.setAttribute("role", "menu");
+    m.setAttribute("aria-label", label);
+    m._anchor = anchor;
+    var sw = items.length && items[0].color;
+    var box = m;
+    if (sw) {
+      m.classList.add("swpop");
+      box = h("div", "sws");
+      m.append(h("div", "fh", label), box);
+    }
+    items.forEach(function (it) {
+      if (sw) {
+        var s = h("div", "sw");
+        s.setAttribute("role", "menuitemradio");
+        s.setAttribute("aria-checked", String(!!it.checked));
+        s.setAttribute("aria-label", it.label);
+        s.title = it.label;
+        s.tabIndex = -1;
+        s.style.setProperty("--c", it.color);
+        s.onclick = function () {
+          closePop(true);
+          it.fn();
+        };
+        return box.append(s);
+      }
+      var r = h("div", "ddo" + (it.cls ? " " + it.cls : ""));
+      r.setAttribute("role", it.checked == null ? "menuitem" : "menuitemradio");
+      if (it.checked != null) r.setAttribute("aria-checked", String(it.checked));
+      r.tabIndex = -1;
+      var g = h("span", "ddg");
+      g.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true">' + it.icon + "</svg>"; // static markup only
+      r.append(g, h("span", "fl", it.label));
+      if (it.checked != null) r.insertAdjacentHTML("beforeend", DD_CHECK);
+      r.onclick = function () {
+        closePop(true);
+        it.fn();
+      };
+      m.append(r);
+    });
+    m.onkeydown = function (ev) {
+      var rs = Array.prototype.slice.call(box.children);
+      var i = rs.indexOf(document.activeElement);
+      if (ev.key === "Escape") i = -2;
+      else if (ev.key === "Tab") return closePop(false);
+      else if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        if (i > -1) rs[i].click();
+        return;
+      }
+      else if (ev.key === (sw ? "ArrowRight" : "ArrowDown")) i = (i + 1) % rs.length;
+      else if (ev.key === (sw ? "ArrowLeft" : "ArrowUp")) i = (i - 1 + rs.length) % rs.length;
+      else if (ev.key === "Home") i = 0;
+      else if (ev.key === "End") i = rs.length - 1;
+      else return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (i === -2) closePop(true);
+      else rs[i].focus();
+    };
+    document.body.append(m);
+    popEl = m;
+    anchor.setAttribute("aria-expanded", "true");
+    var b = anchor.getBoundingClientRect();
+    var right = !!end !== (getComputedStyle(anchor).direction === "rtl");
+    var x = right ? b.right - m.offsetWidth : b.left;
+    var above = b.top - m.offsetHeight - 6;
+    var y = b.bottom + 6;
+    // inside a card: open over the card (towards its larger side) and keep within its edges
+    var card = anchor.closest(".nc");
+    if (card) {
+      var cb = card.getBoundingClientRect();
+      up = b.top - cb.top > cb.bottom - b.bottom;
+      x = Math.max(cb.left + 6, Math.min(cb.right - m.offsetWidth - 6, x));
+    }
+    if (up ? above >= 8 : y + m.offsetHeight > innerHeight - 8) y = above; // up, or no room below → open upwards
+    m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, x)) + "px";
+    m.style.top = Math.max(8, y) + "px";
+    (box.querySelector("[aria-checked=true]") || box.firstChild).focus();
+  }
+  document.addEventListener("mousedown", function (ev) {
+    if (popEl && !popEl.contains(ev.target) && !popEl._anchor.contains(ev.target)) closePop(false);
+  });
+  addEventListener("resize", function () {
+    closePop(false);
+  });
+  document.addEventListener(
+    "scroll",
+    function (ev) {
+      if (popEl && !popEl.contains(ev.target)) closePop(false);
+    },
+    true,
+  );
+  /**
+   * Path of a page for the preview card link: "/docs/intro?x=1" (decoded), "/" for a home page.
+   * @param {string} url
+   * @returns {string}
+   */
+  function pagePath(url) {
+    try {
+      var u = new URL(url);
+      var s = u.pathname + u.search;
+      try {
+        return decodeURI(s);
+      } catch (x) {
+        return s; // malformed %-escape: show it raw
+      }
+    } catch (x) {
+      return url;
+    }
+  }
+  /**
+   * Note text element. An empty note shows a soft placeholder instead.
+   * @param {Object} n - note
+   * @param {boolean} [tap] - the text is click-to-edit: the placeholder says so
+   * @returns {HTMLElement}
+   */
+  function textEl(n, tap) {
+    var t = n.text.trim();
+    return h("div", t ? "t" : "t ph", t || tr(tap ? "emptyTap" : "emptyNote"));
+  }
+  /**
+   * Top row of a sticky card: site icon + domain · time.
    * @param {Object} e - { page, note, i } entry
    * @returns {HTMLElement}
    */
   function topRow(e) {
     var host = PN.host(e.page.url);
     var top = h("div", "ntop");
-    var nm = h("span", "nm", siteShort(host));
+    var nm = h("span", "nm", host.replace(/^www\./, ""));
     nm.title = host;
     top.append(fav(e.page), nm, h("span", "k", PN.when(e.note.updatedAt || e.note.createdAt)));
     return top;
   }
   /**
-   * Grid card for the sticky and preview views.
+   * Grid card for the sticky and preview views. Preview: site + "…" menu, snapshot (opens the page),
+   * page path, scrolling text, status dropdown + time.
    * @param {Object} e - { page, note, i } entry
    * @param {Object} shots - storage snapshot holding the note screenshots (PN.SHOT + id)
    * @param {string} view - "sticky" | "preview"
@@ -412,19 +663,14 @@
     var p = e.page;
     var n = e.note;
     var c = shell(e);
-    var txt = h("div", "t", n.text.trim() || "(empty note)");
-    var bot = h("div", "bot");
-    pills(n, bot);
-    bot.append(pageLink(e, "pgt"));
+    var txt = textEl(n, true);
     if (view === "preview") {
       // where the note sits: the saved snapshot, else a drawn mini page with the note on it
-      var sh = h("a", "sh");
-      sh.href = PN.noteLink(p.url, n.id);
+      // a click anywhere on the shot opens the page; the path link inside it is the keyboard / screen-reader way
+      var sh = h("div", "sh");
       sh.title = "Open the page at this note";
-      sh.setAttribute("aria-label", "Open the page at this note");
       sh.onclick = function (ev) {
-        ev.preventDefault();
-        open(p, n);
+        if (!ev.target.closest("a")) open(p, n);
       };
       var img = shots[PN.SHOT + n.id];
       if (img) {
@@ -432,28 +678,114 @@
         im.alt = "Where this note sits on " + PN.host(p.url);
         im.loading = "lazy";
         im.src = img;
-        sh.append(im, h("span", "mk"));
+        // the whole shot is shown (contain); a blurred copy fills the bands it leaves empty
+        var bl = h("img", "bl");
+        bl.alt = "";
+        bl.loading = "lazy";
+        bl.src = img;
+        sh.append(bl, im);
       } else {
-        [[16, 12], [28, 34], [104, 12], [116, 26]].forEach(function (x) {
+        // a drawn page (text lines, % of the box) with the note on it, placed roughly like on the page
+        [[16, 38], [27, 52], [68, 30], [79, 46]].forEach(function (x) {
           var ln = h("i");
-          ln.style.top = x[0] + "px";
-          ln.style.insetInlineEnd = x[1] + "px";
+          ln.style.top = x[0] + "%";
+          ln.style.insetInlineEnd = x[1] + "%";
           sh.append(ln);
         });
         var b = h("b");
-        b.style.top = 40 + (Math.abs(n.y || 0) % 34) + "px";
-        b.style.insetInlineStart = 16 + (Math.abs(n.x || 0) % 18) + "px";
+        b.style.top = 24 + (Math.abs(n.y || 0) % 30) + "%";
+        b.style.insetInlineStart = 50 + (Math.abs(n.x || 0) % 30) + "%";
         sh.append(b);
       }
-      var bd = h("div", "bd");
-      bd.append(topRow(e), txt, bot);
-      c.append(sh, bd);
-    } else c.append(topRow(e), txt, bot);
-    actions(c, e);
+      // head: site domain · "…" menu
+      var host = PN.host(p.url);
+      var hd = h("div", "vhd");
+      var dm = h("span", "dm");
+      dm.title = host;
+      dm.append(fav(p), h("span", "dmn", host));
+      var more = h("button", "vmore");
+      more.type = "button";
+      more.title = tr("vwMore");
+      more.setAttribute("aria-label", tr("vwMore"));
+      more.setAttribute("aria-haspopup", "menu");
+      more.setAttribute("aria-expanded", "false");
+      more.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>';
+      more.onclick = function () {
+        // status lives in the footer, so the menu skips done / reopen
+        var items = noteActs(e)
+          .filter(function (a) {
+            return a.cls !== "a-done" && a.cls !== "a-reopen";
+          })
+          .map(function (a) {
+            return { label: tr(a.key), icon: AI[a.cls], cls: a.cls === "a-del" ? "danger" : "", fn: function () {
+              a.fn();
+            } };
+          });
+        popMenu(more, items, tr("vwMore"), true);
+      };
+      hd.append(dm, more);
+      // page path link in a box at the bottom of the shot (redirect icon slides in on hover)
+      var pg = pageLink(e, "pgp");
+      pg.textContent = "";
+      pg.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true">' + AI["a-link"] + "</svg>"); // static markup only
+      pg.append(h("span", "", pagePath(p.url)));
+      pg.insertAdjacentHTML("beforeend", '<svg class="go" viewBox="0 0 16 16" aria-hidden="true">' + AI["a-open"] + "</svg>");
+      sh.append(pg);
+      // footer: status dropdown · time
+      var st = statusBtn(p, n);
+      // colour: a swatch button opening a row of the note colours
+      var cb = h("button", "vclr");
+      cb.type = "button";
+      cb.title = tr("vwColor");
+      cb.setAttribute("aria-label", tr("vwColor"));
+      cb.setAttribute("aria-haspopup", "menu");
+      cb.setAttribute("aria-expanded", "false");
+      cb.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>');
+      cb.onclick = function () {
+        popMenu(
+          cb,
+          PN.COLORS.map(function (col, k) {
+            return { label: tr("clr" + k), color: col, checked: col === n.color, fn: function () {
+              if (col === n.color) return;
+              n.color = col;
+              savePage(p); // keeps the date → the list order stays the same
+              dropShot(n);
+            } };
+          }),
+          tr("vwColor"),
+          false,
+          true,
+        );
+      };
+      var ft = h("div", "vft");
+      ft.append(st, cb);
+      if (n.hl) ft.append(h("span", "npill np-y", tr("hl")));
+      ft.append(h("span", "k", PN.when(n.updatedAt || n.createdAt)));
+      inlineEdit(txt, p, n);
+      c.append(hd, sh, txt, ft);
+      return c;
+    }
+    var bot = h("div", "bot");
+    bot.append(statusBtn(p, n));
+    if (n.hl) bot.append(h("span", "npill np-y", tr("hl")));
+    // page link in a box under the header: link icon + the link itself (domain + path) + redirect icon
+    var pb = pageLink(e, "pgb");
+    pb.textContent = "";
+    pb.insertAdjacentHTML("beforeend", '<span class="pgi" aria-hidden="true"><svg viewBox="0 0 16 16">' + AI["a-link"] + "</svg></span>"); // static markup only
+    var path = pagePath(p.url);
+    var pn = h("span", "pgn");
+    pn.append(h("b", "", PN.host(p.url).replace(/^www\./, "")), path === "/" ? "" : path);
+    pb.append(pn);
+    if (p.title) pb.title = p.title + "\n" + p.url;
+    pb.insertAdjacentHTML("beforeend", '<svg class="go" viewBox="0 0 16 16" aria-hidden="true">' + AI["a-open"] + "</svg>");
+    inlineEdit(txt, p, n);
+    c.append(topRow(e), pb, txt, bot);
+    actions(bot, e, true);
     return c;
   }
   /**
-   * Timeline row: text, site · page · time, pills + open arrow.
+   * Timeline row: clock time in the gutter, colour edge, text (click to edit) over site · page link,
+   * status dropdown + action drawer on the right.
    * @param {Object} e - { page, note, i } entry
    * @returns {HTMLElement}
    */
@@ -461,24 +793,21 @@
     var p = e.page;
     var n = e.note;
     var c = shell(e);
+    var ts = n.createdAt || 0;
+    var tm = h("time", "tm", new Date(ts).toLocaleTimeString(PN.lang || undefined, { hour: "numeric", minute: "2-digit" }));
+    tm.dateTime = new Date(ts).toISOString();
+    var txt = textEl(n, true);
+    inlineEdit(txt, p, n);
     var s = h("div", "s");
     var host = PN.host(p.url);
-    var nm = h("span", "nm", siteShort(host));
+    var nm = h("b", "nm", host.replace(/^www\./, ""));
     nm.title = host;
-    s.append(fav(p), nm, h("span", "sep", "·"), pageLink(e, "pgt"), h("span", "sep", "·"), h("span", "k", PN.when(n.updatedAt || n.createdAt)));
+    s.append(fav(p), nm, h("span", "sep", "/"), pageLink(e, "pgt"), h("span", "sep", "·"), h("span", "k", PN.when(n.updatedAt || n.createdAt)));
     var r = h("div", "r");
-    pills(n, r);
-    var go = h("button", "go");
-    go.type = "button";
-    go.title = tr("vwOpen");
-    go.setAttribute("aria-label", tr("vwOpen"));
-    go.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>'); // static markup only
-    go.onclick = function () {
-      open(p, n);
-    };
-    r.append(go);
-    c.append(h("div", "t", n.text.trim() || "(empty note)"), s, r);
-    actions(c, e);
+    r.append(statusBtn(p, n));
+    if (n.hl) r.append(h("span", "npill np-y", tr("hl")));
+    actions(r, e, true);
+    c.append(tm, txt, s, r);
     return c;
   }
   /**
@@ -571,7 +900,7 @@
     var nm = h("span", "nm", siteShort(host));
     nm.title = host;
     s.append(fav(e.page), nm, h("span", "k", PN.when(n.updatedAt || n.createdAt)));
-    c.append(h("div", "t", n.text.trim() || "(empty note)"));
+    c.append(textEl(n));
     if (n.hl || (n.done && n.pri === "urgent")) {
       var pl = h("div", "bot");
       pills(n, pl, true);
@@ -631,6 +960,90 @@
    * @param {Object} p - the page
    * @param {Object} n - the note
    */
+  /**
+   * Preview cards: click (or Enter on) the note text to edit it in place.
+   * Blur or Ctrl+Enter saves, Esc cancels.
+   * @param {HTMLElement} txt - the .t text element
+   * @param {object} p - page
+   * @param {object} n - note
+   */
+  function inlineEdit(txt, p, n) {
+    txt.tabIndex = 0;
+    txt.setAttribute("role", "button");
+    txt.title = tr("vwEdit");
+    txt.onkeydown = function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        txt.onclick();
+      }
+    };
+    txt.onclick = function (ev) {
+      if (selecting || editing || String(getSelection()).length) return; // let people select text to copy it
+      // caret where the user clicked (keyboard: at the start); keep the scroll position
+      var at = 0;
+      var hit = ev && ev.clientX != null && document.caretRangeFromPoint && document.caretRangeFromPoint(ev.clientX, ev.clientY);
+      if (txt.classList.contains("ph")) at = 0;
+      else if (hit && hit.startContainer.parentNode === txt) at = Math.max(0, n.text.indexOf(txt.textContent)) + hit.startOffset;
+      var top = txt.scrollTop;
+      var ta = h("textarea", "t te");
+      ta.value = n.text;
+      ta.setAttribute("aria-label", tr("vwEdit"));
+      var done = false;
+      var down = false; // blur came from a mouse press → let that click land before the grid redraws
+      function pd() {
+        down = true;
+      }
+      document.addEventListener("pointerdown", pd, true);
+      function finish(save) {
+        if (done) return;
+        done = true;
+        document.removeEventListener("pointerdown", pd, true);
+        var text = ta.value.replace(/\s+$/, "");
+        if (save && text !== n.text) {
+          n.text = text;
+          n.updatedAt = Date.now();
+          savePage(p);
+          say("Saved");
+        }
+        txt.textContent = n.text.trim() || tr("emptyTap");
+        txt.classList.toggle("ph", !n.text.trim());
+        if (ta.isConnected) ta.replaceWith(txt);
+        var off = false;
+        function release() {
+          if (off) return;
+          off = true;
+          editing = null;
+          render();
+        }
+        if (!down) return release();
+        addEventListener("click", release, { once: true });
+        setTimeout(release, 800); // the press may not end in a click (drag, text select)
+      }
+      ta.onblur = function () {
+        finish(true);
+      };
+      ta.onkeydown = function (ev) {
+        if (ev.key === "Escape") {
+          ev.stopPropagation();
+          finish(false);
+        } else if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) finish(true);
+      };
+      editing = n.id; // blocks re-renders while typing
+      txt.replaceWith(ta);
+      ta.scrollTop = top;
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(at, at);
+      ta.scrollTop = top;
+    };
+  }
+  /**
+   * The colour changed here, so the saved snapshot shows the old one: drop it. The card falls back to
+   * the drawn page in the new colour, and the page retakes the picture next time the note is on screen.
+   * @param {object} n - note
+   */
+  function dropShot(n) {
+    chrome.storage.local.remove(PN.SHOT + n.id);
+  }
   function openEditor(p, n) {
     ed = { p: p, n: n, color: n.color, done: !!n.done, urgent: n.pri === "urgent" };
     var dots = $("edDots");
@@ -648,17 +1061,24 @@
     });
     $("edText").value = n.text;
     $("edQ").textContent = n.hl ? "\u201c" + n.hl.text.replace(/\s+/g, " ").trim() + "\u201d" : n.anchor && n.quote ? "\u2316 " + n.quote : "";
-    $("edPg").textContent = (p.title || PN.host(p.url)) + " \u00b7 " + PN.host(p.url);
+    // header: site icon | domain over the page link
+    $("edFav").replaceChildren(fav(p));
+    $("edTtl").textContent = PN.host(p.url).replace(/^www\./, "");
+    $("edPg").textContent = pagePath(p.url);
+    $("edPg").title = p.title ? p.title + "\n" + p.url : p.url;
     paintEditor();
     editing = n.id;
     $("editor").classList.add("on");
     var t = $("edText");
+    t.placeholder = tr("edPh");
+    t.setAttribute("aria-label", tr("vwEdit"));
     t.focus();
-    t.setSelectionRange(t.value.length, t.value.length);
+    t.setSelectionRange(0, 0); // start at the beginning of the text
+    t.scrollTop = 0;
   }
   /** Updates the editor colors and toggle buttons from the draft. */
   function paintEditor() {
-    $("edNote").style.background = ed.color;
+    $("editor").style.setProperty("--c", ed.color); // header swatch + note tint
     Array.prototype.forEach.call($("edDots").children, function (b, i) {
       b.setAttribute("aria-pressed", String(PN.COLORS[i] === ed.color));
     });
@@ -676,6 +1096,7 @@
       var text = $("edText").value.replace(/\s+$/, "");
       var changed = text !== n.text || ed.color !== n.color || ed.done !== !!n.done || ed.urgent !== (n.pri === "urgent");
       if (changed) {
+        if (ed.color !== n.color) dropShot(n);
         n.text = text;
         n.color = ed.color;
         n.done = ed.done;
@@ -701,7 +1122,7 @@
   $("edSave").onclick = function () {
     closeEditor(true);
   };
-  $("edNo").onclick = function () {
+  $("edX").onclick = $("edNo").onclick = function () {
     closeEditor(false);
   };
   $("editor").onclick = function (e) {
@@ -720,18 +1141,30 @@
 
     // site filter options
     var sites = Array.from(new Set(all.map(function (e) { return PN.host(e.page.url); }))).sort();
+    // per site: note count + a favicon, shown in the site dropdown
+    var per = {};
+    all.forEach(function (e) {
+      var k = PN.host(e.page.url);
+      per[k] = per[k] || { n: 0, fav: "" };
+      per[k].n++;
+      if (!per[k].fav && e.page.favicon) per[k].fav = e.page.favicon;
+    });
     var sel = $("site");
     sel.textContent = "";
-    var o0 = h("option", "", "All sites (" + sites.length + ")");
+    var o0 = h("option", "", tr("allSites"));
     o0.value = "";
+    o0.dataset.n = all.length;
     sel.appendChild(o0);
     sites.forEach(function (s) {
       var o = h("option", "", s);
       o.value = s;
+      o.dataset.n = per[s].n;
+      o.dataset.fav = per[s].fav;
       sel.appendChild(o);
     });
     if (sites.indexOf(state.site) < 0) state.site = "";
     sel.value = state.site;
+    siteDD.sync();
 
     paintFilter(all, q);
     $("clearF").hidden = !(state.site || state.color || q || fltActive());
@@ -1073,6 +1506,176 @@
   });
   $("flt").addEventListener("focusout", function (e) {
     if (e.relatedTarget && !$("flt").contains(e.relatedTarget)) closeFilter(false);
+  });
+
+  // ---------- site + sort dropdowns (a <select> kept hidden as the source of truth) ----------
+  var DD_GLOBE = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c1.6 1.6 2.3 3.4 2.3 5.5S9.6 11.9 8 13.5C6.4 11.9 5.7 10.1 5.7 8S6.4 4.1 8 2.5"/></svg>';
+  var DD_SORT = {
+    new: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3v10M2.5 11l2 2 2-2M9 4h4.5M9 7.5h3.2M9 11h2"/></svg>',
+    old: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 13V3M2.5 5l2-2 2 2M9 4h2M9 7.5h3.2M9 11h4.5"/></svg>',
+    site: DD_GLOBE
+  };
+  var DD_CHECK = '<svg class="ddck" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>';
+  /**
+   * Turns a native <select> (inside its .fsel label) into the dashboard dropdown: a button showing
+   * "Label  Value" and a listbox. Picking an option sets select.value and fires "change", so the
+   * select's own handler keeps working.
+   * @param {string} id - select id
+   * @param {function(HTMLOptionElement):Node} icon - leading icon for an option
+   * @param {boolean} [search] - show a search box when the list is long
+   * @returns {{sync: function()}} sync - repaint the button after select.value / options change
+   */
+  function dropdown(id, icon, search) {
+    var sel = $(id);
+    var lab = sel.closest("label");
+    var wrap = h("div", "dd dd-" + id);
+    var name = lab.firstElementChild.textContent;
+    var btn = h("button", "ddbtn");
+    btn.type = "button";
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", sel.getAttribute("aria-label"));
+    var ico = h("span", "ddi");
+    var val = h("span", "ddv");
+    var chev = h("span", "ddch");
+    chev.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>';
+    btn.append(ico, h("span", "ddk", name), val, chev);
+    var menu = h("div", "ddmenu");
+    menu.hidden = true;
+    var q = h("input", "ddq");
+    q.type = "search";
+    var list = h("div", "ddl");
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-label", sel.getAttribute("aria-label"));
+    menu.append(h("div", "fh", name), q, list);
+    sel.hidden = true;
+    wrap.append(btn, menu, sel);
+    lab.replaceWith(wrap);
+
+    function sync() {
+      var o = sel.options[sel.selectedIndex];
+      val.textContent = o ? o.textContent : "";
+      ico.textContent = "";
+      if (o) ico.append(icon(o));
+      wrap.classList.toggle("on", sel.selectedIndex > 0 && id === "site");
+    }
+    function rows() {
+      return Array.prototype.filter.call(list.children, function (r) {
+        return !r.hidden;
+      });
+    }
+    function build() {
+      list.textContent = "";
+      Array.prototype.forEach.call(sel.options, function (o) {
+        var r = h("div", "ddo");
+        r.setAttribute("role", "option");
+        r.tabIndex = -1;
+        r.dataset.v = o.value;
+        r.setAttribute("aria-selected", String(o.selected));
+        r.append(icon(o), h("span", "fl", o.textContent));
+        if (o.dataset.n) r.append(h("em", "", o.dataset.n));
+        r.insertAdjacentHTML("beforeend", DD_CHECK);
+        list.append(r);
+      });
+      q.value = "";
+      q.placeholder = tr("searchSites"); // read on open: the language loads after this file runs
+      q.setAttribute("aria-label", q.placeholder);
+      q.hidden = !(search && sel.options.length > 7);
+    }
+    function open() {
+      build();
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      if (!q.hidden) q.focus();
+      else (list.querySelector("[aria-selected=true]") || list.firstChild).focus();
+    }
+    function close(refocus) {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      if (refocus) btn.focus();
+    }
+    function choose(r) {
+      if (r.dataset.v !== sel.value) {
+        sel.value = r.dataset.v;
+        sel.dispatchEvent(new Event("change"));
+      }
+      sync();
+      close(true);
+    }
+    btn.onclick = function () {
+      if (menu.hidden) open();
+      else close(false);
+    };
+    btn.onkeydown = function (e) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        open();
+      }
+    };
+    q.oninput = function () {
+      var s = q.value.trim().toLowerCase();
+      Array.prototype.forEach.call(list.children, function (r) {
+        r.hidden = !!s && r.dataset.v.indexOf(s) < 0;
+      });
+    };
+    list.onclick = function (e) {
+      var r = e.target.closest(".ddo");
+      if (r) choose(r);
+    };
+    menu.onkeydown = function (e) {
+      var rs = rows();
+      var i = rs.indexOf(document.activeElement);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        return close(true);
+      }
+      if (e.key === "Tab") return close(false);
+      if ((e.key === "Enter" || e.key === " ") && i > -1) {
+        e.preventDefault();
+        return choose(rs[i]);
+      }
+      if (e.key === "Enter" && rs.length) {
+        e.preventDefault();
+        return choose(rs[0]); // Enter in the search box picks the first match
+      }
+      if (e.key === "ArrowDown") i = Math.min(rs.length - 1, i + 1);
+      else if (e.key === "ArrowUp") i = i < 1 && !q.hidden ? -1 : Math.max(0, i - 1);
+      else if (e.key === "Home") i = 0;
+      else if (e.key === "End") i = rs.length - 1;
+      else return;
+      e.preventDefault();
+      if (i < 0) q.focus();
+      else if (rs[i]) rs[i].focus();
+    };
+    document.addEventListener("mousedown", function (e) {
+      if (!wrap.contains(e.target)) close(false);
+    });
+    wrap.addEventListener("focusout", function (e) {
+      if (e.relatedTarget && !wrap.contains(e.relatedTarget)) close(false);
+    });
+    sync();
+    return { sync: sync };
+  }
+  /**
+   * Site icon for the site dropdown: the page favicon, else its first letter; a globe for "All sites".
+   * @param {HTMLOptionElement} o
+   * @returns {Node}
+   */
+  function siteIcon(o) {
+    if (!o.value) {
+      var g = h("span", "ddg");
+      g.innerHTML = DD_GLOBE;
+      return g;
+    }
+    return fav({ url: "https://" + o.value + "/", favicon: o.dataset.fav });
+  }
+  var siteDD = dropdown("site", siteIcon, true);
+  dropdown("sort", function (o) {
+    var g = h("span", "ddg");
+    g.innerHTML = DD_SORT[o.value] || "";
+    return g;
   });
 
   // ---------- controls ----------
@@ -1417,26 +2020,60 @@
   });
 
   // ---------- data ----------
-  /** Reloads all storage and re-renders. */
+  var loaded = false; // first load: the status shows in the grid (like "no notes"); later reloads use the small pill
+  /**
+   * Status page in the grid while the first load is slow ("busy") or failed ("err", with Try again).
+   * @param {?string} st - "busy" | "err" | null (done: render() fills the grid)
+   * @param {Function} retry - loads again
+   */
+  function loadState(st, retry) {
+    if (!st) return;
+    var grid = $("grid");
+    var w = h("div", "hello st " + st);
+    w.setAttribute("role", st === "err" ? "alert" : "status");
+    var ic = h("span", "st-ic");
+    ic.setAttribute("aria-hidden", "true");
+    if (st === "busy")
+      PN.COLORS.forEach(function (c) {
+        var d = h("i");
+        d.style.background = c;
+        ic.appendChild(d);
+      });
+    w.append(ic, h("h2", "", tr(st === "err" ? "ldErrT" : "ldNotes")));
+    if (st === "err") {
+      var b = h("button", "btn", tr("retry"));
+      b.type = "button";
+      b.onclick = retry;
+      w.append(h("p", "", tr("ldErrX")), b);
+    }
+    grid.textContent = "";
+    grid.appendChild(w);
+    if (b) b.focus();
+  }
+  /** Reloads all storage and re-renders (status when slow, Try again on failure). */
   function refresh() {
-    chrome.storage.local.get(null, function (s) {
-      store = s;
-      PN.setDev(s.settings && s.settings.dev); // inspect mode shows its own notes
-      var nv = s.settings && s.settings.notesView;
-      if (nv && VIEWS.indexOf(nv) > -1 && nv !== state.view) {
-        state.view = nv;
-        paintView();
-      }
-      if (!fltLoaded) {
-        fltLoaded = true;
-        // a one-shot ?tab=open|done|urgent|hl|links link wins over the saved filter
-        var tab = new URLSearchParams(location.search).get("tab");
-        var f = tab ? fltFromTab(tab) : fltClean(s.settings && s.settings.notesFilter);
-        state.status = f.status;
-        state.tags = f.tags;
-      }
-      render();
-    });
+    PN.withLoader(function (done, fail) {
+      chrome.storage.local.get(null).then(function (s) {
+        store = s;
+        PN.setDev(s.settings && s.settings.dev); // inspect mode shows its own notes
+        var nv = s.settings && s.settings.notesView;
+        if (nv && VIEWS.indexOf(nv) > -1 && nv !== state.view) {
+          state.view = nv;
+          paintView();
+        }
+        if (!fltLoaded) {
+          fltLoaded = true;
+          // a one-shot ?tab=open|done|urgent|hl|links link wins over the saved filter
+          var tab = new URLSearchParams(location.search).get("tab");
+          var f = tab ? fltFromTab(tab) : fltClean(s.settings && s.settings.notesFilter);
+          state.status = f.status;
+          state.tags = f.tags;
+        }
+        render();
+        loaded = true;
+        done();
+      }).catch(fail);
+    }, loaded ? null : loadState);
   }
   chrome.storage.onChanged.addListener(refresh);
   // resolve the UI language first (timeline day names, labels), then load the notes

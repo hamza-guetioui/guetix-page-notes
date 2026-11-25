@@ -7,7 +7,7 @@
  *   missing keys fall back to English, then to the key itself. "{n}"-style placeholders are filled by t().
  * - LANGS: [code, native name] pairs shown in the pickers. RTL: right-to-left languages.
  * - Adds to the PN namespace from shared.js (must load first): PN.lang, PN.langPref, PN.LANGS,
- *   PN.t, PN.tn, PN.applyI18n, PN.initLang, PN.langPicker, PN.langMenu.
+ *   PN.t, PN.tn, PN.applyI18n, PN.initLang, PN.langPicker, PN.langMenu, PN.withLoader.
  * - The chosen language is saved in chrome.storage.local settings.lang; changing it reloads the page. */
 /* eslint-disable no-var */
 (function () {
@@ -17,7 +17,9 @@
       clear: "Clear", tHome: "Home", yourNotes: "Your notes", pageNotes: "This page’s notes", searchNotes: "Search notes…", searchSites: "Search sites…", notesTotal1: "{n} note in total", notesTotalN: "{n} notes in total", sitesTotal1: "{n} site in total", sitesTotalN: "{n} sites in total", addToSite: "Add note to current site", tip: "Tip", tipX: "Select text on the page and create a note instantly.", sortNew: "Recent", sortOld: "Oldest", openFull: "Open full view", note1: "{n} note", noteN: "{n} notes", emptyPageT: "No notes yet", emptyPageX: "Add your first note to capture ideas, highlights, or reminders on this page.", noSites: "No sites yet", sort: "Sort",
       showHere: "Show this page's notes", showHereD: "Only for the page you are on",
       urgent: "Urgent",
-      vwView: "View", vwSticky: "Sticky", vwPreview: "Preview", vwTimeline: "Timeline", vwBoard: "Board", vwToday: "Today", vwYesterday: "Yesterday", vwNoSel: "Not available in Board", vwDrop: "Drop notes here", vwDone: "Mark as done", vwReopen: "Reopen", vwCopy: "Copy link", vwEdit: "Edit", vwDel: "Delete", vwOpen: "Open on its page",
+      vwView: "View", vwSticky: "Sticky", vwPreview: "Preview", vwTimeline: "Timeline", vwBoard: "Board", vwToday: "Today", vwYesterday: "Yesterday", vwNoSel: "Not available in Board", vwDrop: "Drop notes here", vwDone: "Mark as done", vwReopen: "Reopen", vwCopy: "Copy link", vwEdit: "Edit", vwDel: "Delete", vwOpen: "Open on its page", vwMore: "More actions", emptyNote: "Empty note", emptyTap: "Empty note — click to start writing", vwColor: "Note color", clr0: "Yellow", clr1: "Pink", clr2: "Green", clr3: "Blue",
+      cancel: "Cancel", save: "Save", edHint: "Ctrl+Enter save · Esc cancel", edPh: "Write a note…", vwWrap: "Wrap long lines", vwNoWrap: "Don’t wrap lines",
+      ldNotes: "Preparing your notes…", ldErrT: "Couldn’t load your notes", ldErrX: "Something went wrong while reading them. Your notes are still saved.", retry: "Try again",
       fltLbl: "Filter", fltAll: "All notes", fltStatus: "Status", fltTags: "Tags", fltAny: "All", fltOpen: "Open", fltDone: "Done", fltUrgent: "Urgent", fltHl: "Highlights", fltLinks: "With links", fltClear: "Clear", fltOk: "Done", fltReset: "Clear filters",
       secNotes: "Notes on pages", secToolbar: "Toolbar", secHelp: "Help & messages", secMore: "Personal", secCustom: "Customize", secDev: "Dev", devWarnL: "Read first", devWarn: "For developers. Turning on Inspect mode changes how the extension works: you only see and add element notes, and your normal notes are hidden until you turn it off. Not sure? Leave it off.", sWhen: "When notes appear", sWhenD: "Show notes right away, or only when you ask for them.", whenAuto: "Right away", whenAutoD: "As soon as a page opens", whenClick: "When I open Page Notes", whenClickD: "Click the toolbar icon to see them", sDock: "Toolbar on pages", sDockD: "The small bar in the corner to add and browse notes.", dockAuto: "When needed", dockAutoD: "Shows when a page has notes", dockMini: "Always, small", dockMiniD: "Always there as a tiny icon", dockOff: "Hidden", dockOffD: "Never shown - use shortcuts", sPos: "Toolbar position", sPosD: "Drag the toolbar by its logo to move it.", resetPos: "Reset position", posReset: "Toolbar back in the corner", gmFullD: "Opens while you place a note", gmCompactD: "Only a ? you can click", sTheme: "Appearance", sThemeD: "Light, dark, or match your device", thSys: "System", thSysD: "Follows your device", thLight: "Light", thLightD: "Bright and clear", thDark: "Dark", thDarkD: "Easy on the eyes",
       cEl: "Stick a note to an element", cHl: "Highlight text with a note",
@@ -47,7 +49,9 @@
       clear: "Effacer", tHome: "Accueil", yourNotes: "Vos notes", pageNotes: "Notes de cette page", searchNotes: "Rechercher des notes…", searchSites: "Rechercher des sites…", notesTotal1: "{n} note au total", notesTotalN: "{n} notes au total", sitesTotal1: "{n} site au total", sitesTotalN: "{n} sites au total", addToSite: "Ajouter une note à ce site", tip: "Astuce", tipX: "Sélectionnez du texte sur la page pour créer une note instantanément.", sortNew: "Récentes", sortOld: "Anciennes", openFull: "Vue complète", note1: "{n} note", noteN: "{n} notes", emptyPageT: "Pas encore de notes", emptyPageX: "Ajoutez votre première note pour garder idées, passages ou rappels sur cette page.", noSites: "Aucun site pour l’instant", sort: "Trier",
       showHere: "Afficher les notes de cette page", showHereD: "Uniquement pour la page actuelle",
       urgent: "Urgent",
-      vwView: "Affichage", vwSticky: "Post-it", vwPreview: "Aperçu", vwTimeline: "Chronologie", vwBoard: "Tableau", vwToday: "Aujourd’hui", vwYesterday: "Hier", vwNoSel: "Indisponible en vue Tableau", vwDrop: "Déposez des notes ici", vwDone: "Marquer terminée", vwReopen: "Rouvrir", vwCopy: "Copier le lien", vwEdit: "Modifier", vwDel: "Supprimer", vwOpen: "Ouvrir sur sa page",
+      vwView: "Affichage", vwSticky: "Post-it", vwPreview: "Aperçu", vwTimeline: "Chronologie", vwBoard: "Tableau", vwToday: "Aujourd’hui", vwYesterday: "Hier", vwNoSel: "Indisponible en vue Tableau", vwDrop: "Déposez des notes ici", vwDone: "Marquer terminée", vwReopen: "Rouvrir", vwCopy: "Copier le lien", vwEdit: "Modifier", vwDel: "Supprimer", vwOpen: "Ouvrir sur sa page", vwMore: "Plus d’actions", emptyNote: "Note vide", emptyTap: "Note vide — cliquez pour écrire", vwColor: "Couleur de la note", clr0: "Jaune", clr1: "Rose", clr2: "Vert", clr3: "Bleu",
+      cancel: "Annuler", save: "Enregistrer", edHint: "Ctrl+Entrée enregistrer · Échap annuler", edPh: "Écrivez une note…", vwWrap: "Renvoyer les lignes à la ligne", vwNoWrap: "Ne pas renvoyer à la ligne",
+      ldNotes: "Préparation de vos notes…", ldErrT: "Impossible de charger vos notes", ldErrX: "Un problème est survenu pendant la lecture. Vos notes sont toujours enregistrées.", retry: "Réessayer",
       fltLbl: "Filtrer", fltAll: "Toutes les notes", fltStatus: "Statut", fltTags: "Étiquettes", fltAny: "Toutes", fltOpen: "Ouvertes", fltDone: "Terminées", fltUrgent: "Urgentes", fltHl: "Surlignages", fltLinks: "Avec liens", fltClear: "Effacer", fltOk: "OK", fltReset: "Effacer les filtres",
       secNotes: "Notes sur les pages", secToolbar: "Barre d’outils", secHelp: "Aide & messages", secMore: "Personnel", secCustom: "Personnaliser", secDev: "Dev", devWarnL: "À lire", devWarn: "Pour les développeurs. Activer le mode Inspection change le fonctionnement de l'extension : vous ne voyez et n'ajoutez que des notes sur éléments, et vos notes normales sont masquées jusqu'à sa désactivation. Pas sûr ? Laissez-le désactivé.", sWhen: "Quand afficher les notes", sWhenD: "Afficher les notes tout de suite, ou seulement quand vous le demandez.", whenAuto: "Tout de suite", whenAutoD: "Dès que la page s’ouvre", whenClick: "Quand j’ouvre Page Notes", whenClickD: "Cliquez sur l’icône pour les voir", sDock: "Barre sur les pages", sDockD: "La petite barre dans le coin pour ajouter et parcourir les notes.", dockAuto: "Si besoin", dockAutoD: "Visible quand la page a des notes", dockMini: "Toujours, réduite", dockMiniD: "Toujours là, en petite icône", dockOff: "Masquée", dockOffD: "Jamais affichée - utilisez les raccourcis", sPos: "Position de la barre", sPosD: "Faites glisser la barre par son logo pour la déplacer.", resetPos: "Réinitialiser", posReset: "Barre remise dans le coin", gmFullD: "S’ouvre pendant le placement", gmCompactD: "Seulement un ? cliquable", sTheme: "Apparence", sThemeD: "Clair, sombre ou comme votre appareil", thSys: "Système", thSysD: "Suit votre appareil", thLight: "Clair", thLightD: "Lumineux et net", thDark: "Sombre", thDarkD: "Repose les yeux",
       cEl: "Fixer une note à un élément", cHl: "Surligner du texte avec une note",
@@ -77,7 +81,9 @@
       clear: "Borrar", tHome: "Inicio", yourNotes: "Tus notas", pageNotes: "Notas de esta página", searchNotes: "Buscar notas…", searchSites: "Buscar sitios…", notesTotal1: "{n} nota en total", notesTotalN: "{n} notas en total", sitesTotal1: "{n} sitio en total", sitesTotalN: "{n} sitios en total", addToSite: "Añadir nota a este sitio", tip: "Consejo", tipX: "Selecciona texto en la página y crea una nota al instante.", sortNew: "Recientes", sortOld: "Antiguas", openFull: "Vista completa", note1: "{n} nota", noteN: "{n} notas", emptyPageT: "Aún no hay notas", emptyPageX: "Añade tu primera nota para guardar ideas, fragmentos o recordatorios en esta página.", noSites: "Aún no hay sitios", sort: "Ordenar",
       showHere: "Mostrar notas de esta página", showHereD: "Solo para la página actual",
       urgent: "Urgente",
-      vwView: "Vista", vwSticky: "Adhesiva", vwPreview: "Vista previa", vwTimeline: "Cronología", vwBoard: "Tablero", vwToday: "Hoy", vwYesterday: "Ayer", vwNoSel: "No disponible en Tablero", vwDrop: "Suelta notas aquí", vwDone: "Marcar como hecha", vwReopen: "Reabrir", vwCopy: "Copiar enlace", vwEdit: "Editar", vwDel: "Eliminar", vwOpen: "Abrir en su página",
+      vwView: "Vista", vwSticky: "Adhesiva", vwPreview: "Vista previa", vwTimeline: "Cronología", vwBoard: "Tablero", vwToday: "Hoy", vwYesterday: "Ayer", vwNoSel: "No disponible en Tablero", vwDrop: "Suelta notas aquí", vwDone: "Marcar como hecha", vwReopen: "Reabrir", vwCopy: "Copiar enlace", vwEdit: "Editar", vwDel: "Eliminar", vwOpen: "Abrir en su página", vwMore: "Más acciones", emptyNote: "Nota vacía", emptyTap: "Nota vacía — haz clic para escribir", vwColor: "Color de la nota", clr0: "Amarillo", clr1: "Rosa", clr2: "Verde", clr3: "Azul",
+      cancel: "Cancelar", save: "Guardar", edHint: "Ctrl+Intro guardar · Esc cancelar", edPh: "Escribe una nota…", vwWrap: "Ajustar líneas largas", vwNoWrap: "No ajustar líneas",
+      ldNotes: "Preparando tus notas…", ldErrT: "No se pudieron cargar tus notas", ldErrX: "Algo salió mal al leerlas. Tus notas siguen guardadas.", retry: "Reintentar",
       fltLbl: "Filtrar", fltAll: "Todas las notas", fltStatus: "Estado", fltTags: "Etiquetas", fltAny: "Todas", fltOpen: "Abiertas", fltDone: "Hechas", fltUrgent: "Urgentes", fltHl: "Resaltados", fltLinks: "Con enlaces", fltClear: "Borrar", fltOk: "Listo", fltReset: "Borrar filtros",
       secNotes: "Notas en las páginas", secToolbar: "Barra", secHelp: "Ayuda y mensajes", secMore: "Personal", secCustom: "Personalizar", secDev: "Dev", devWarnL: "Leer antes", devWarn: "Para desarrolladores. Activar el modo Inspección cambia cómo funciona la extensión: solo verás y añadirás notas de elementos, y tus notas normales quedan ocultas hasta que lo desactives. ¿No estás seguro? Déjalo desactivado.", sWhen: "Cuándo mostrar las notas", sWhenD: "Muestra las notas al momento o solo cuando las pidas.", whenAuto: "Al momento", whenAutoD: "En cuanto se abre la página", whenClick: "Al abrir Page Notes", whenClickD: "Haz clic en el icono para verlas", sDock: "Barra en las páginas", sDockD: "La pequeña barra de la esquina para añadir y ver notas.", dockAuto: "Cuando haga falta", dockAutoD: "Aparece si la página tiene notas", dockMini: "Siempre, pequeña", dockMiniD: "Siempre como un icono pequeño", dockOff: "Oculta", dockOffD: "Nunca se muestra - usa atajos", sPos: "Posición de la barra", sPosD: "Arrastra la barra por su logo para moverla.", resetPos: "Restablecer", posReset: "Barra de vuelta en la esquina", gmFullD: "Se abre al colocar una nota", gmCompactD: "Solo un ? para pulsar", sTheme: "Apariencia", sThemeD: "Claro, oscuro o como tu dispositivo", thSys: "Sistema", thSysD: "Sigue tu dispositivo", thLight: "Claro", thLightD: "Luminoso y nítido", thDark: "Oscuro", thDarkD: "Descansa la vista",
       cEl: "Fijar una nota a un elemento", cHl: "Resaltar texto con una nota",
@@ -107,7 +113,9 @@
       clear: "Löschen", tHome: "Start", yourNotes: "Deine Notizen", pageNotes: "Notizen dieser Seite", searchNotes: "Notizen suchen…", searchSites: "Websites suchen…", notesTotal1: "{n} Notiz insgesamt", notesTotalN: "{n} Notizen insgesamt", sitesTotal1: "{n} Website insgesamt", sitesTotalN: "{n} Websites insgesamt", addToSite: "Notiz zu dieser Website", tip: "Tipp", tipX: "Markiere Text auf der Seite und erstelle sofort eine Notiz.", sortNew: "Neueste", sortOld: "Älteste", openFull: "Vollansicht", note1: "{n} Notiz", noteN: "{n} Notizen", emptyPageT: "Noch keine Notizen", emptyPageX: "Füge deine erste Notiz hinzu – für Ideen, Markierungen oder Erinnerungen auf dieser Seite.", noSites: "Noch keine Websites", sort: "Sortieren",
       showHere: "Notizen dieser Seite zeigen", showHereD: "Nur für die aktuelle Seite",
       urgent: "Dringend",
-      vwView: "Ansicht", vwSticky: "Haftnotiz", vwPreview: "Vorschau", vwTimeline: "Zeitleiste", vwBoard: "Board", vwToday: "Heute", vwYesterday: "Gestern", vwNoSel: "In der Board-Ansicht nicht verfügbar", vwDrop: "Notizen hierher ziehen", vwDone: "Als erledigt markieren", vwReopen: "Wieder öffnen", vwCopy: "Link kopieren", vwEdit: "Bearbeiten", vwDel: "Löschen", vwOpen: "Auf der Seite öffnen",
+      vwView: "Ansicht", vwSticky: "Haftnotiz", vwPreview: "Vorschau", vwTimeline: "Zeitleiste", vwBoard: "Board", vwToday: "Heute", vwYesterday: "Gestern", vwNoSel: "In der Board-Ansicht nicht verfügbar", vwDrop: "Notizen hierher ziehen", vwDone: "Als erledigt markieren", vwReopen: "Wieder öffnen", vwCopy: "Link kopieren", vwEdit: "Bearbeiten", vwDel: "Löschen", vwOpen: "Auf der Seite öffnen", vwMore: "Weitere Aktionen", emptyNote: "Leere Notiz", emptyTap: "Leere Notiz — zum Schreiben klicken", vwColor: "Notizfarbe", clr0: "Gelb", clr1: "Rosa", clr2: "Grün", clr3: "Blau",
+      cancel: "Abbrechen", save: "Speichern", edHint: "Strg+Enter speichern · Esc abbrechen", edPh: "Notiz schreiben…", vwWrap: "Lange Zeilen umbrechen", vwNoWrap: "Zeilen nicht umbrechen",
+      ldNotes: "Notizen werden vorbereitet…", ldErrT: "Notizen konnten nicht geladen werden", ldErrX: "Beim Lesen ist etwas schiefgelaufen. Deine Notizen sind weiterhin gespeichert.", retry: "Erneut versuchen",
       fltLbl: "Filtern", fltAll: "Alle Notizen", fltStatus: "Status", fltTags: "Tags", fltAny: "Alle", fltOpen: "Offen", fltDone: "Erledigt", fltUrgent: "Dringend", fltHl: "Markierungen", fltLinks: "Mit Links", fltClear: "Zurücksetzen", fltOk: "Fertig", fltReset: "Filter zurücksetzen",
       secNotes: "Notizen auf Seiten", secToolbar: "Leiste", secHelp: "Hilfe & Meldungen", secMore: "Persönlich", secCustom: "Anpassen", secDev: "Dev", devWarnL: "Zuerst lesen", devWarn: "Für Entwickler. Der Inspektionsmodus ändert, wie die Erweiterung funktioniert: Du siehst und erstellst nur Element-Notizen, deine normalen Notizen sind ausgeblendet, bis du ihn ausschaltest. Unsicher? Lass ihn aus.", sWhen: "Wann Notizen erscheinen", sWhenD: "Notizen sofort zeigen oder nur, wenn du sie aufrufst.", whenAuto: "Sofort", whenAutoD: "Sobald die Seite lädt", whenClick: "Wenn ich Page Notes öffne", whenClickD: "Klick aufs Symbol zeigt sie", sDock: "Leiste auf Seiten", sDockD: "Die kleine Leiste in der Ecke zum Hinzufügen und Durchblättern.", dockAuto: "Bei Bedarf", dockAutoD: "Erscheint, wenn die Seite Notizen hat", dockMini: "Immer, klein", dockMiniD: "Immer als kleines Symbol", dockOff: "Aus", dockOffD: "Nie sichtbar - nutze Kürzel", sPos: "Position der Leiste", sPosD: "Zieh die Leiste am Logo, um sie zu verschieben.", resetPos: "Zurücksetzen", posReset: "Leiste wieder in der Ecke", gmFullD: "Öffnet sich beim Platzieren", gmCompactD: "Nur ein ? zum Anklicken", sTheme: "Darstellung", sThemeD: "Hell, dunkel oder wie dein Gerät", thSys: "System", thSysD: "Folgt deinem Gerät", thLight: "Hell", thLightD: "Klar und freundlich", thDark: "Dunkel", thDarkD: "Schont die Augen",
       cEl: "Notiz an ein Element heften", cHl: "Text mit Notiz hervorheben",
@@ -137,7 +145,9 @@
       clear: "Limpar", tHome: "Início", yourNotes: "Suas notas", pageNotes: "Notas desta página", searchNotes: "Pesquisar notas…", searchSites: "Pesquisar sites…", notesTotal1: "{n} nota no total", notesTotalN: "{n} notas no total", sitesTotal1: "{n} site no total", sitesTotalN: "{n} sites no total", addToSite: "Adicionar nota a este site", tip: "Dica", tipX: "Selecione texto na página e crie uma nota na hora.", sortNew: "Recentes", sortOld: "Antigas", openFull: "Visão completa", note1: "{n} nota", noteN: "{n} notas", emptyPageT: "Ainda sem notas", emptyPageX: "Adicione sua primeira nota para guardar ideias, trechos ou lembretes nesta página.", noSites: "Ainda sem sites", sort: "Ordenar",
       showHere: "Mostrar notas desta página", showHereD: "Só para a página atual",
       urgent: "Urgente",
-      vwView: "Visualização", vwSticky: "Adesiva", vwPreview: "Pré-visualização", vwTimeline: "Linha do tempo", vwBoard: "Quadro", vwToday: "Hoje", vwYesterday: "Ontem", vwNoSel: "Indisponível no Quadro", vwDrop: "Solte notas aqui", vwDone: "Marcar como concluída", vwReopen: "Reabrir", vwCopy: "Copiar link", vwEdit: "Editar", vwDel: "Excluir", vwOpen: "Abrir na página",
+      vwView: "Visualização", vwSticky: "Adesiva", vwPreview: "Pré-visualização", vwTimeline: "Linha do tempo", vwBoard: "Quadro", vwToday: "Hoje", vwYesterday: "Ontem", vwNoSel: "Indisponível no Quadro", vwDrop: "Solte notas aqui", vwDone: "Marcar como concluída", vwReopen: "Reabrir", vwCopy: "Copiar link", vwEdit: "Editar", vwDel: "Excluir", vwOpen: "Abrir na página", vwMore: "Mais ações", emptyNote: "Nota vazia", emptyTap: "Nota vazia — clique para escrever", vwColor: "Cor da nota", clr0: "Amarelo", clr1: "Rosa", clr2: "Verde", clr3: "Azul",
+      cancel: "Cancelar", save: "Salvar", edHint: "Ctrl+Enter salvar · Esc cancelar", edPh: "Escreva uma nota…", vwWrap: "Quebrar linhas longas", vwNoWrap: "Não quebrar linhas",
+      ldNotes: "Preparando suas notas…", ldErrT: "Não foi possível carregar suas notas", ldErrX: "Algo deu errado ao lê-las. Suas notas continuam salvas.", retry: "Tentar novamente",
       fltLbl: "Filtrar", fltAll: "Todas as notas", fltStatus: "Status", fltTags: "Etiquetas", fltAny: "Todas", fltOpen: "Abertas", fltDone: "Concluídas", fltUrgent: "Urgentes", fltHl: "Destaques", fltLinks: "Com links", fltClear: "Limpar", fltOk: "Pronto", fltReset: "Limpar filtros",
       secNotes: "Notas nas páginas", secToolbar: "Barra", secHelp: "Ajuda e mensagens", secMore: "Pessoal", secCustom: "Personalizar", secDev: "Dev", devWarnL: "Leia antes", devWarn: "Para desenvolvedores. Ativar o modo Inspeção muda o funcionamento da extensão: você só vê e adiciona notas de elementos, e suas notas normais ficam ocultas até desativá-lo. Na dúvida? Deixe desativado.", sWhen: "Quando mostrar as notas", sWhenD: "Mostre as notas na hora ou só quando pedir.", whenAuto: "Na hora", whenAutoD: "Assim que a página abre", whenClick: "Quando abro o Page Notes", whenClickD: "Clique no ícone para vê-las", sDock: "Barra nas páginas", sDockD: "A pequena barra no canto para adicionar e ver notas.", dockAuto: "Quando precisar", dockAutoD: "Aparece se a página tem notas", dockMini: "Sempre, pequena", dockMiniD: "Sempre como um ícone pequeno", dockOff: "Oculta", dockOffD: "Nunca aparece - use atalhos", sPos: "Posição da barra", sPosD: "Arraste a barra pelo logo para movê-la.", resetPos: "Redefinir", posReset: "Barra de volta ao canto", gmFullD: "Abre ao posicionar uma nota", gmCompactD: "Só um ? para clicar", sTheme: "Aparência", sThemeD: "Claro, escuro ou como o seu dispositivo", thSys: "Sistema", thSysD: "Segue o seu dispositivo", thLight: "Claro", thLightD: "Luminoso e nítido", thDark: "Escuro", thDarkD: "Descansa a vista",
       cEl: "Prender nota a um elemento", cHl: "Destacar texto com uma nota",
@@ -167,7 +177,9 @@
       clear: "Cancella", tHome: "Home", yourNotes: "Le tue note", pageNotes: "Note di questa pagina", searchNotes: "Cerca note…", searchSites: "Cerca siti…", notesTotal1: "{n} nota in totale", notesTotalN: "{n} note in totale", sitesTotal1: "{n} sito in totale", sitesTotalN: "{n} siti in totale", addToSite: "Aggiungi nota a questo sito", tip: "Suggerimento", tipX: "Seleziona del testo nella pagina e crea subito una nota.", sortNew: "Recenti", sortOld: "Meno recenti", openFull: "Vista completa", note1: "{n} nota", noteN: "{n} note", emptyPageT: "Ancora nessuna nota", emptyPageX: "Aggiungi la tua prima nota per salvare idee, passaggi o promemoria su questa pagina.", noSites: "Ancora nessun sito", sort: "Ordina",
       showHere: "Mostra le note di questa pagina", showHereD: "Solo per la pagina attuale",
       urgent: "Urgente",
-      vwView: "Vista", vwSticky: "Adesiva", vwPreview: "Anteprima", vwTimeline: "Cronologia", vwBoard: "Bacheca", vwToday: "Oggi", vwYesterday: "Ieri", vwNoSel: "Non disponibile in Bacheca", vwDrop: "Trascina qui le note", vwDone: "Segna come fatta", vwReopen: "Riapri", vwCopy: "Copia link", vwEdit: "Modifica", vwDel: "Elimina", vwOpen: "Apri nella sua pagina",
+      vwView: "Vista", vwSticky: "Adesiva", vwPreview: "Anteprima", vwTimeline: "Cronologia", vwBoard: "Bacheca", vwToday: "Oggi", vwYesterday: "Ieri", vwNoSel: "Non disponibile in Bacheca", vwDrop: "Trascina qui le note", vwDone: "Segna come fatta", vwReopen: "Riapri", vwCopy: "Copia link", vwEdit: "Modifica", vwDel: "Elimina", vwOpen: "Apri nella sua pagina", vwMore: "Altre azioni", emptyNote: "Nota vuota", emptyTap: "Nota vuota — fai clic per scrivere", vwColor: "Colore della nota", clr0: "Giallo", clr1: "Rosa", clr2: "Verde", clr3: "Blu",
+      cancel: "Annulla", save: "Salva", edHint: "Ctrl+Invio salva · Esc annulla", edPh: "Scrivi una nota…", vwWrap: "A capo automatico", vwNoWrap: "Nessun a capo automatico",
+      ldNotes: "Preparazione delle note…", ldErrT: "Impossibile caricare le note", ldErrX: "Qualcosa è andato storto durante la lettura. Le tue note sono ancora salvate.", retry: "Riprova",
       fltLbl: "Filtra", fltAll: "Tutte le note", fltStatus: "Stato", fltTags: "Etichette", fltAny: "Tutte", fltOpen: "Aperte", fltDone: "Fatte", fltUrgent: "Urgenti", fltHl: "Evidenziazioni", fltLinks: "Con link", fltClear: "Cancella", fltOk: "Fatto", fltReset: "Cancella filtri",
       secNotes: "Note sulle pagine", secToolbar: "Barra", secHelp: "Aiuto e messaggi", secMore: "Personale", secCustom: "Personalizza", secDev: "Dev", devWarnL: "Leggi prima", devWarn: "Per sviluppatori. Attivare la modalità Ispezione cambia il funzionamento dell'estensione: vedi e aggiungi solo note sugli elementi, e le tue note normali restano nascoste finché non la disattivi. Non sei sicuro? Lasciala disattivata.", sWhen: "Quando mostrare le note", sWhenD: "Mostra le note subito o solo quando le chiedi.", whenAuto: "Subito", whenAutoD: "Appena si apre la pagina", whenClick: "Quando apro Page Notes", whenClickD: "Clicca l’icona per vederle", sDock: "Barra sulle pagine", sDockD: "La piccola barra nell’angolo per aggiungere e sfogliare le note.", dockAuto: "Quando serve", dockAutoD: "Appare se la pagina ha note", dockMini: "Sempre, piccola", dockMiniD: "Sempre come piccola icona", dockOff: "Nascosta", dockOffD: "Mai visibile - usa le scorciatoie", sPos: "Posizione della barra", sPosD: "Trascina la barra dal logo per spostarla.", resetPos: "Ripristina", posReset: "Barra di nuovo nell’angolo", gmFullD: "Si apre mentre posizioni", gmCompactD: "Solo un ? da cliccare", sTheme: "Aspetto", sThemeD: "Chiaro, scuro o come il dispositivo", thSys: "Sistema", thSysD: "Segue il dispositivo", thLight: "Chiaro", thLightD: "Luminoso e nitido", thDark: "Scuro", thDarkD: "Riposa la vista",
       cEl: "Fissa una nota a un elemento", cHl: "Evidenzia testo con una nota",
@@ -197,7 +209,9 @@
       clear: "Очистить", tHome: "Главная", yourNotes: "Ваши заметки", pageNotes: "Заметки этой страницы", searchNotes: "Поиск заметок…", searchSites: "Поиск сайтов…", notesTotal1: "Всего {n} заметка", notesTotalN: "Всего заметок: {n}", sitesTotal1: "Всего {n} сайт", sitesTotalN: "Всего сайтов: {n}", addToSite: "Заметка на этом сайте", tip: "Совет", tipX: "Выделите текст на странице и сразу создайте заметку.", sortNew: "Новые", sortOld: "Старые", openFull: "Полный вид", note1: "{n} заметка", noteN: "Заметок: {n}", emptyPageT: "Заметок пока нет", emptyPageX: "Добавьте первую заметку — идеи, выделения или напоминания для этой страницы.", noSites: "Сайтов пока нет", sort: "Сортировка",
       showHere: "Заметки этой страницы", showHereD: "Только для текущей страницы",
       urgent: "Срочно",
-      vwView: "Вид", vwSticky: "Стикер", vwPreview: "Превью", vwTimeline: "Хронология", vwBoard: "Доска", vwToday: "Сегодня", vwYesterday: "Вчера", vwNoSel: "Недоступно в режиме доски", vwDrop: "Перетащите заметки сюда", vwDone: "Отметить выполненной", vwReopen: "Открыть снова", vwCopy: "Копировать ссылку", vwEdit: "Изменить", vwDel: "Удалить", vwOpen: "Открыть на странице",
+      vwView: "Вид", vwSticky: "Стикер", vwPreview: "Превью", vwTimeline: "Хронология", vwBoard: "Доска", vwToday: "Сегодня", vwYesterday: "Вчера", vwNoSel: "Недоступно в режиме доски", vwDrop: "Перетащите заметки сюда", vwDone: "Отметить выполненной", vwReopen: "Открыть снова", vwCopy: "Копировать ссылку", vwEdit: "Изменить", vwDel: "Удалить", vwOpen: "Открыть на странице", vwMore: "Другие действия", emptyNote: "Пустая заметка", emptyTap: "Пустая заметка — нажмите, чтобы писать", vwColor: "Цвет заметки", clr0: "Жёлтый", clr1: "Розовый", clr2: "Зелёный", clr3: "Синий",
+      cancel: "Отмена", save: "Сохранить", edHint: "Ctrl+Enter — сохранить · Esc — отмена", edPh: "Напишите заметку…", vwWrap: "Переносить длинные строки", vwNoWrap: "Не переносить строки",
+      ldNotes: "Подготовка заметок…", ldErrT: "Не удалось загрузить заметки", ldErrX: "При чтении что-то пошло не так. Ваши заметки по-прежнему сохранены.", retry: "Повторить",
       fltLbl: "Фильтр", fltAll: "Все заметки", fltStatus: "Статус", fltTags: "Метки", fltAny: "Все", fltOpen: "Открытые", fltDone: "Готовые", fltUrgent: "Срочные", fltHl: "Выделения", fltLinks: "Со ссылками", fltClear: "Сбросить", fltOk: "Готово", fltReset: "Сбросить фильтры",
       secNotes: "Заметки на страницах", secToolbar: "Панель", secHelp: "Подсказки и сообщения", secMore: "Личное", secCustom: "Настройка", secDev: "Разработка", devWarnL: "Важно", devWarn: "Для разработчиков. Режим инспекции меняет работу расширения: вы видите и добавляете только заметки к элементам, а обычные заметки скрыты, пока режим не выключен. Не уверены? Оставьте выключенным.", sWhen: "Когда показывать заметки", sWhenD: "Сразу или только когда вы попросите.", whenAuto: "Сразу", whenAutoD: "Как только откроется страница", whenClick: "Когда открываю Page Notes", whenClickD: "Нажмите на значок, чтобы увидеть", sDock: "Панель на страницах", sDockD: "Маленькая панель в углу для добавления и просмотра заметок.", dockAuto: "По необходимости", dockAutoD: "Видна, если на странице есть заметки", dockMini: "Всегда, маленькая", dockMiniD: "Всегда в виде значка", dockOff: "Скрыта", dockOffD: "Не показывается - используйте клавиши", sPos: "Положение панели", sPosD: "Перетащите панель за логотип.", resetPos: "Сбросить", posReset: "Панель снова в углу", gmFullD: "Открывается при размещении", gmCompactD: "Только кнопка ?", sTheme: "Оформление", sThemeD: "Светлое, тёмное или как в системе", thSys: "Системная", thSysD: "Как на устройстве", thLight: "Светлая", thLightD: "Яркая и чёткая", thDark: "Тёмная", thDarkD: "Бережёт глаза",
       cEl: "Прикрепить заметку к элементу", cHl: "Выделить текст с заметкой",
@@ -227,7 +241,9 @@
       clear: "مسح", tHome: "الرئيسية", yourNotes: "ملاحظاتك", pageNotes: "ملاحظات هذه الصفحة", searchNotes: "ابحث في الملاحظات…", searchSites: "ابحث في المواقع…", notesTotal1: "ملاحظة واحدة إجمالًا", notesTotalN: "{n} ملاحظات إجمالًا", sitesTotal1: "موقع واحد إجمالًا", sitesTotalN: "{n} مواقع إجمالًا", addToSite: "أضف ملاحظة لهذا الموقع", tip: "نصيحة", tipX: "حدّد نصًا في الصفحة وأنشئ ملاحظة فورًا.", sortNew: "الأحدث", sortOld: "الأقدم", openFull: "العرض الكامل", note1: "ملاحظة واحدة", noteN: "{n} ملاحظات", emptyPageT: "لا توجد ملاحظات بعد", emptyPageX: "أضف أول ملاحظة لحفظ الأفكار أو المقتطفات أو التذكيرات في هذه الصفحة.", noSites: "لا توجد مواقع بعد", sort: "ترتيب",
       showHere: "إظهار ملاحظات هذه الصفحة", showHereD: "لهذه الصفحة فقط",
       urgent: "عاجل",
-      vwView: "العرض", vwSticky: "ملصق", vwPreview: "معاينة", vwTimeline: "الخط الزمني", vwBoard: "لوحة", vwToday: "اليوم", vwYesterday: "أمس", vwNoSel: "غير متاح في عرض اللوحة", vwDrop: "أفلت الملاحظات هنا", vwDone: "تعليم كمنجزة", vwReopen: "إعادة فتح", vwCopy: "نسخ الرابط", vwEdit: "تعديل", vwDel: "حذف", vwOpen: "فتح في صفحتها",
+      vwView: "العرض", vwSticky: "ملصق", vwPreview: "معاينة", vwTimeline: "الخط الزمني", vwBoard: "لوحة", vwToday: "اليوم", vwYesterday: "أمس", vwNoSel: "غير متاح في عرض اللوحة", vwDrop: "أفلت الملاحظات هنا", vwDone: "تعليم كمنجزة", vwReopen: "إعادة فتح", vwCopy: "نسخ الرابط", vwEdit: "تعديل", vwDel: "حذف", vwOpen: "فتح في صفحتها", vwMore: "إجراءات أخرى", emptyNote: "ملاحظة فارغة", emptyTap: "ملاحظة فارغة — انقر لبدء الكتابة", vwColor: "لون الملاحظة", clr0: "أصفر", clr1: "وردي", clr2: "أخضر", clr3: "أزرق",
+      cancel: "إلغاء", save: "حفظ", edHint: "Ctrl+Enter للحفظ · Esc للإلغاء", edPh: "اكتب ملاحظة…", vwWrap: "التفاف الأسطر الطويلة", vwNoWrap: "عدم التفاف الأسطر",
+      ldNotes: "جارٍ تجهيز ملاحظاتك…", ldErrT: "تعذّر تحميل ملاحظاتك", ldErrX: "حدث خطأ أثناء قراءتها. ملاحظاتك ما زالت محفوظة.", retry: "إعادة المحاولة",
       fltLbl: "تصفية", fltAll: "كل الملاحظات", fltStatus: "الحالة", fltTags: "الوسوم", fltAny: "الكل", fltOpen: "مفتوحة", fltDone: "منجزة", fltUrgent: "عاجلة", fltHl: "تظليلات", fltLinks: "بها روابط", fltClear: "مسح", fltOk: "تم", fltReset: "مسح عوامل التصفية",
       secNotes: "الملاحظات على الصفحات", secToolbar: "شريط الأدوات", secHelp: "المساعدة والرسائل", secMore: "شخصي", secCustom: "تخصيص", secDev: "للمطورين", devWarnL: "اقرأ أولاً", devWarn: "للمطورين. تفعيل وضع الفحص يغيّر طريقة عمل الإضافة: سترى وتضيف ملاحظات العناصر فقط، وتُخفى ملاحظاتك العادية حتى توقفه. لست متأكداً؟ اتركه متوقفاً.", sWhen: "متى تظهر الملاحظات", sWhenD: "أظهر الملاحظات فورًا أو فقط عندما تطلبها.", whenAuto: "فورًا", whenAutoD: "بمجرد فتح الصفحة", whenClick: "عند فتح Page Notes", whenClickD: "انقر الأيقونة لرؤيتها", sDock: "شريط الأدوات على الصفحات", sDockD: "الشريط الصغير في الزاوية لإضافة الملاحظات وتصفحها.", dockAuto: "عند الحاجة", dockAutoD: "يظهر إذا كانت للصفحة ملاحظات", dockMini: "دائمًا، صغير", dockMiniD: "دائمًا كأيقونة صغيرة", dockOff: "مخفي", dockOffD: "لا يظهر أبدًا - استخدم الاختصارات", sPos: "موضع الشريط", sPosD: "اسحب الشريط من شعاره لتحريكه.", resetPos: "إعادة الضبط", posReset: "عاد الشريط إلى الزاوية", gmFullD: "يفتح أثناء وضع الملاحظة", gmCompactD: "فقط زر ؟ للنقر", sTheme: "المظهر", sThemeD: "فاتح أو داكن أو حسب جهازك", thSys: "النظام", thSysD: "يتبع جهازك", thLight: "فاتح", thLightD: "مشرق وواضح", thDark: "داكن", thDarkD: "مريح للعينين",
       cEl: "تثبيت ملاحظة على عنصر", cHl: "تمييز نص مع ملاحظة",
@@ -257,7 +273,9 @@
       clear: "清除", tHome: "主页", yourNotes: "你的笔记", pageNotes: "本页笔记", searchNotes: "搜索笔记…", searchSites: "搜索网站…", notesTotal1: "共 {n} 条笔记", notesTotalN: "共 {n} 条笔记", sitesTotal1: "共 {n} 个网站", sitesTotalN: "共 {n} 个网站", addToSite: "为当前网站添加笔记", tip: "提示", tipX: "在页面上选中文字，即可立即创建笔记。", sortNew: "最新", sortOld: "最早", openFull: "完整视图", note1: "{n} 条笔记", noteN: "{n} 条笔记", emptyPageT: "还没有笔记", emptyPageX: "添加第一条笔记，记录本页的想法、摘录或提醒。", noSites: "还没有网站", sort: "排序",
       showHere: "显示本页笔记", showHereD: "仅对当前页面",
       urgent: "紧急",
-      vwView: "视图", vwSticky: "便签", vwPreview: "预览", vwTimeline: "时间线", vwBoard: "看板", vwToday: "今天", vwYesterday: "昨天", vwNoSel: "看板视图中不可用", vwDrop: "将笔记拖到这里", vwDone: "标记为完成", vwReopen: "重新打开", vwCopy: "复制链接", vwEdit: "编辑", vwDel: "删除", vwOpen: "在页面上打开",
+      vwView: "视图", vwSticky: "便签", vwPreview: "预览", vwTimeline: "时间线", vwBoard: "看板", vwToday: "今天", vwYesterday: "昨天", vwNoSel: "看板视图中不可用", vwDrop: "将笔记拖到这里", vwDone: "标记为完成", vwReopen: "重新打开", vwCopy: "复制链接", vwEdit: "编辑", vwDel: "删除", vwOpen: "在页面上打开", vwMore: "更多操作", emptyNote: "空笔记", emptyTap: "空笔记 — 点击开始输入", vwColor: "便签颜色", clr0: "黄色", clr1: "粉色", clr2: "绿色", clr3: "蓝色",
+      cancel: "取消", save: "保存", edHint: "Ctrl+Enter 保存 · Esc 取消", edPh: "写一条笔记…", vwWrap: "长行自动换行", vwNoWrap: "不自动换行",
+      ldNotes: "正在准备笔记…", ldErrT: "无法加载笔记", ldErrX: "读取时出了点问题。你的笔记仍然保存着。", retry: "重试",
       fltLbl: "筛选", fltAll: "所有笔记", fltStatus: "状态", fltTags: "标签", fltAny: "全部", fltOpen: "未完成", fltDone: "已完成", fltUrgent: "紧急", fltHl: "高亮", fltLinks: "含链接", fltClear: "清除", fltOk: "完成", fltReset: "清除筛选",
       secNotes: "页面上的笔记", secToolbar: "工具栏", secHelp: "帮助与消息", secMore: "个人", secCustom: "自定义", secDev: "开发", devWarnL: "请先阅读", devWarn: "面向开发者。开启检查模式会改变扩展的工作方式：你只能查看和添加元素笔记，普通笔记会被隐藏，直到关闭此模式。不确定？请保持关闭。", sWhen: "何时显示笔记", sWhenD: "立即显示，或仅在你需要时显示。", whenAuto: "立即", whenAutoD: "页面一打开就显示", whenClick: "打开 Page Notes 时", whenClickD: "点击工具栏图标查看", sDock: "页面工具栏", sDockD: "角落里用于添加和浏览笔记的小工具栏。", dockAuto: "需要时", dockAutoD: "页面有笔记时显示", dockMini: "始终（迷你）", dockMiniD: "始终显示为小图标", dockOff: "隐藏", dockOffD: "从不显示 - 使用快捷键", sPos: "工具栏位置", sPosD: "拖动工具栏的图标即可移动。", resetPos: "重置位置", posReset: "工具栏已回到角落", gmFullD: "放置笔记时自动打开", gmCompactD: "只显示可点击的 ?", sTheme: "外观", sThemeD: "浅色、深色或跟随设备", thSys: "跟随系统", thSysD: "与设备设置一致", thLight: "浅色", thLightD: "明亮清晰", thDark: "深色", thDarkD: "护眼舒适",
       cEl: "将笔记固定到元素", cHl: "高亮文本并添加笔记",
@@ -287,7 +305,9 @@
       clear: "クリア", tHome: "ホーム", yourNotes: "あなたのメモ", pageNotes: "このページのメモ", searchNotes: "メモを検索…", searchSites: "サイトを検索…", notesTotal1: "合計 {n} 件のメモ", notesTotalN: "合計 {n} 件のメモ", sitesTotal1: "合計 {n} サイト", sitesTotalN: "合計 {n} サイト", addToSite: "このサイトにメモを追加", tip: "ヒント", tipX: "ページのテキストを選択すると、すぐにメモを作成できます。", sortNew: "新しい順", sortOld: "古い順", openFull: "フルビュー", note1: "{n} 件のメモ", noteN: "{n} 件のメモ", emptyPageT: "メモはまだありません", emptyPageX: "最初のメモを追加して、このページのアイデアやハイライト、リマインダーを残しましょう。", noSites: "サイトはまだありません", sort: "並べ替え",
       showHere: "このページのメモを表示", showHereD: "今のページだけ",
       urgent: "緊急",
-      vwView: "表示", vwSticky: "付箋", vwPreview: "プレビュー", vwTimeline: "タイムライン", vwBoard: "ボード", vwToday: "今日", vwYesterday: "昨日", vwNoSel: "ボード表示では使用できません", vwDrop: "ここにノートをドロップ", vwDone: "完了にする", vwReopen: "再開する", vwCopy: "リンクをコピー", vwEdit: "編集", vwDel: "削除", vwOpen: "ページで開く",
+      vwView: "表示", vwSticky: "付箋", vwPreview: "プレビュー", vwTimeline: "タイムライン", vwBoard: "ボード", vwToday: "今日", vwYesterday: "昨日", vwNoSel: "ボード表示では使用できません", vwDrop: "ここにノートをドロップ", vwDone: "完了にする", vwReopen: "再開する", vwCopy: "リンクをコピー", vwEdit: "編集", vwDel: "削除", vwOpen: "ページで開く", vwMore: "その他の操作", emptyNote: "空のメモ", emptyTap: "空のメモ — クリックして入力", vwColor: "メモの色", clr0: "黄色", clr1: "ピンク", clr2: "緑", clr3: "青",
+      cancel: "キャンセル", save: "保存", edHint: "Ctrl+Enter で保存 · Esc でキャンセル", edPh: "メモを書く…", vwWrap: "長い行を折り返す", vwNoWrap: "行を折り返さない",
+      ldNotes: "メモを準備中…", ldErrT: "メモを読み込めませんでした", ldErrX: "読み込み中に問題が発生しました。メモは保存されたままです。", retry: "再試行",
       fltLbl: "フィルター", fltAll: "すべてのメモ", fltStatus: "ステータス", fltTags: "タグ", fltAny: "すべて", fltOpen: "未完了", fltDone: "完了", fltUrgent: "緊急", fltHl: "ハイライト", fltLinks: "リンクあり", fltClear: "クリア", fltOk: "完了", fltReset: "フィルターをクリア",
       secNotes: "ページ上のメモ", secToolbar: "ツールバー", secHelp: "ヘルプとメッセージ", secMore: "個人設定", secCustom: "カスタマイズ", secDev: "開発", devWarnL: "先に読んで", devWarn: "開発者向け。検査モードをオンにすると拡張機能の動作が変わります：要素メモだけを表示・追加し、通常のメモはオフにするまで非表示になります。よくわからなければオフのままにしてください。", sWhen: "メモを表示するタイミング", sWhenD: "すぐに表示するか、必要なときだけ表示します。", whenAuto: "すぐに", whenAutoD: "ページを開いたらすぐ", whenClick: "Page Notes を開いたとき", whenClickD: "アイコンをクリックで表示", sDock: "ページのツールバー", sDockD: "メモの追加・閲覧用の小さなバー。", dockAuto: "必要なとき", dockAutoD: "メモがあるページで表示", dockMini: "常に（小さく）", dockMiniD: "常に小さなアイコンで表示", dockOff: "非表示", dockOffD: "表示しない - ショートカットを使用", sPos: "ツールバーの位置", sPosD: "ロゴをドラッグして移動できます。", resetPos: "位置をリセット", posReset: "ツールバーを角に戻しました", gmFullD: "配置中に開く", gmCompactD: "クリックできる ? のみ", sTheme: "外観", sThemeD: "ライト・ダーク・デバイスに合わせる", thSys: "システム", thSysD: "デバイスの設定に従う", thLight: "ライト", thLightD: "明るくくっきり", thDark: "ダーク", thDarkD: "目にやさしい",
       cEl: "要素にメモを固定", cHl: "テキストをハイライトしてメモ",
@@ -518,7 +538,97 @@
     });
   }
 
+  /**
+   * Runs a data load with quiet feedback: a small "Preparing your notes…" pill (bottom centre, never blocks
+   * the page) when it takes over 300ms; the same pill turns into an error with Try again when it fails or
+   * takes over 10s. Styles: .pn-load in ui.css.
+   * @param {function(function(), function(*))} load - called with (done, fail); called again on Try again
+   * @param {function(?string, function())} [view] - draws the state itself instead of the pill:
+   *   view("busy" | "err" | null, retry)
+   */
+  function withLoader(load, view) {
+    var over = false;
+    var tShow = 0;
+    var tSlow = 0;
+    var showing = null;
+    /** Show state "busy" or "err", or clear it (null). */
+    function ui(state) {
+      showing = state;
+      if (view) return view(state, attempt);
+      var box = document.getElementById("pnLoad");
+      if (!state) return box && box.remove();
+      if (box) box.remove();
+      box = document.createElement("div");
+      box.id = "pnLoad";
+      box.className = "pn-load " + state;
+      var card = document.createElement("div");
+      card.className = "pn-load-card";
+      card.setAttribute("role", state === "err" ? "alert" : "status");
+      var ic = document.createElement("span");
+      ic.className = "pn-load-ic";
+      ic.setAttribute("aria-hidden", "true");
+      if (state === "busy")
+        PN.COLORS.forEach(function (c) {
+          var d = document.createElement("i"); // one dot per note colour, in a wave
+          d.style.background = c;
+          ic.appendChild(d);
+        });
+      var tx = document.createElement("span");
+      tx.className = "pn-load-tx";
+      var b = document.createElement("b");
+      b.textContent = t(state === "err" ? "ldErrT" : "ldNotes");
+      tx.appendChild(b);
+      card.append(ic, tx);
+      if (state === "err") {
+        var p = document.createElement("small");
+        p.textContent = t("ldErrX");
+        tx.appendChild(p);
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "pn-load-btn";
+        btn.textContent = t("retry");
+        btn.onclick = attempt;
+        card.appendChild(btn);
+      }
+      box.appendChild(card);
+      document.body.appendChild(box);
+      if (btn) btn.focus();
+    }
+    function done() {
+      if (over) return;
+      over = true;
+      clearTimeout(tShow);
+      clearTimeout(tSlow);
+      ui(null);
+    }
+    function fail(e) {
+      if (over) return;
+      over = true;
+      clearTimeout(tShow);
+      clearTimeout(tSlow);
+      if (e) console.error("Page Notes: loading failed", e);
+      ui("err");
+    }
+    function attempt() {
+      over = false;
+      if (showing) ui("busy"); // retrying: show progress at once
+      tShow = setTimeout(function () {
+        if (!over) ui("busy");
+      }, 300);
+      tSlow = setTimeout(function () {
+        fail(new Error("timed out"));
+      }, 10000);
+      try {
+        load(done, fail);
+      } catch (e) {
+        fail(e);
+      }
+    }
+    attempt();
+  }
+
   PN.lang = "en";
+  PN.withLoader = withLoader;
   PN.LANGS = LANGS;
   PN.t = t;
   PN.tn = tn;

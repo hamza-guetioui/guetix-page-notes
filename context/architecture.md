@@ -18,6 +18,9 @@ Background → content: commands (`place-*`, `toggle-notes` via `m.type`), `focu
 
 ## Files
 - `shared.js` — loaded in content script and extension pages; `PN` namespace (normUrl, allPages, COLORS, t(), setDev …).
+  Page key = normUrl: no #hash, no tracking params, and per-site KEEP rules for pages that rewrite their own query
+  (YouTube /watch keeps only ?v=). background.js runs PN.rekey on install/update/startup to move records saved under
+  old keys. `npm test` (scripts/check-urls.mjs) checks both.
 - `content.js` — one IIFE; shadow-root CSS is an array of strings at the top (tokens on `:host`, dark overrides `:host([data-theme=dark])`); `build(n)` builds a note, `draggable()`, `trackZone()/trashNote()` delete gesture, `opacityPop()`, dock builder, placing (`startPlacing`, ghost).
 - `notes.js` — routing (`#settings`, `#guides`), card builders per view, filter model, board drag, settings tab bar.
 - `popup.js` — tabs, stat cards, lists, Sites combobox, shortcut badges.
