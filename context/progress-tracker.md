@@ -7,6 +7,9 @@
   downloadable zip `public/extensions/guetix-page-notes.zip` (refresh it from `dist/` after a release).
 - Version **1.5.0** on `dev` (redesign merged via PRs #5/#6 era work); release = PR `dev` → `main`, then tag `v1.5.0`.
 - Chrome Web Store listing is still on 1.2.0 (upload pending).
+- 2026-11-25 All notes polish: Glass view removed, Board hidden (add "board" to `VIEWS` in notes.js + unhide its button to restore);
+  toolbar row 2 = Filter + view switcher left, count + Select right, all 36px; fixed header/footer with a scrolling notes
+  section (>700px wide, >520px tall); empty state centred + collapsible "How to add notes" panel (i18n keys `dTip*`).
 
 ## History carried over from guetix.com
 **Page Notes extension** v1.3.1 (`extensions/page-notes/`), open source at

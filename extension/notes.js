@@ -225,9 +225,10 @@
     var n = parts[i];
     return n.length > 14 ? n.slice(0, 13) + "…" : n;
   }
-  // ---------- views: sticky (default) · glass · preview · timeline · board ----------
-  var VIEWS = ["sticky", "glass", "preview", "timeline", "board"];
-  var VCLS = { sticky: "vk", glass: "vf", preview: "vg", timeline: "vh", board: "vb" };
+  // ---------- views: sticky (default) · preview · timeline (board: code kept, button hidden) ----------
+  // to bring the board back: add "board" here and drop `hidden` from its switcher button in notes.html
+  var VIEWS = ["sticky", "preview", "timeline"];
+  var VCLS = { sticky: "vk", preview: "vg", timeline: "vh", board: "vb" };
   state.view = "sticky";
   var dragId = null; // id of the note being dragged on the board
   /**
@@ -401,10 +402,10 @@
     return top;
   }
   /**
-   * Grid card for the sticky, glass and preview views.
+   * Grid card for the sticky and preview views.
    * @param {Object} e - { page, note, i } entry
    * @param {Object} shots - storage snapshot holding the note screenshots (PN.SHOT + id)
-   * @param {string} view - "sticky" | "glass" | "preview"
+   * @param {string} view - "sticky" | "preview"
    * @returns {HTMLElement}
    */
   function noteCard(e, shots, view) {
@@ -751,13 +752,11 @@
     if (!all.length) {
       var w = h("div", "hello");
       w.append(h("span", "mark"), h("h2", "", "Your notes will live here"), h("p", "", "Pin sticky notes on any website — everything you pin shows up in this list."));
-      var ol = h("ol");
-      [[CMD["place-note"] || "+ Note", "Open any website and press the shortcut (or use the toolbar icon)."], ["Click", "Click anywhere on the page to pin a note."], [CMD["place-highlight"] || "Select", "Select text to highlight it with a note."]].forEach(function (x) {
-        var li = h("li");
-        li.append(h("kbd", "", x[0]), h("span", "", x[1]));
-        ol.append(li);
-      });
-      w.append(ol);
+      // how-to panel (like the popup's Tip): written for this page, where no website is open
+      var tips = h("details", "tips"); // closed by default; the header opens it
+      tips.insertAdjacentHTML("beforeend", '<summary class="guide-h"><svg class="bulb" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M9.8 21h4.4" fill="none" stroke="#d99a06" stroke-width="1.6" stroke-linecap="round"/><path d="M12 2.8a6.4 6.4 0 0 0-3.7 11.6c.5.4.8 1 .8 1.6v.5h5.8V16c0-.6.3-1.2.8-1.6A6.4 6.4 0 0 0 12 2.8z" fill="#fff3c4" stroke="#d99a06" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="tt"><b data-i18n="dTipT">How to add notes</b><small data-i18n="dTipX">Add notes on websites, see them here.</small></span><a href="https://guetix.com/extensions/page-notes-extension#how-it-works" target="_blank" rel="noopener"><svg class="i16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M6.8 5.6v4.8L10.4 8z" fill="currentColor" stroke="none"/></svg><span data-i18n="watch">Watch tour</span></a><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></summary><ol class="tl"><li class="k-o"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M1.5 6h9M6 1.5c1.3 1.3 1.9 2.8 1.9 4.5S7.3 9.2 6 10.5C4.7 9.2 4.1 7.7 4.1 6S4.7 2.8 6 1.5z"/></svg><span data-i18n-html="dTip1"></span></li><li class="k-y"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 10h8M3.5 7.8l4-4.6 1.8 1.6-4 4.5H3.5z"/></svg><span data-i18n-html="dTip2"></span></li><li class="k-b"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.8 2 6.2h2.4V10h3.2V6.2H10z"/></svg><span data-i18n-html="dTip3"></span></li></ol><div class="legend" aria-label="Color legend"><span class="chip or"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.2"/></svg><span data-i18n="open">Open</span></span><span class="chip g"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.3 5 8.6l4.5-5.1"/></svg><span data-i18n="done">Done</span></span><span class="chip y"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 10h8M3.5 7.8l4-4.6 1.8 1.6-4 4.5H3.5z"/></svg><span data-i18n="hl">Highlight</span></span><span class="chip b"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1" stroke-dasharray="1.6 1.3"/><circle cx="6" cy="6" r="1.3"/></svg><span data-i18n="el">Element</span></span><span class="chip p"><svg class="i" viewBox="0 0 12 12" aria-hidden="true"><path d="M5 7 7 5M4.2 5.6 3 6.8a1.7 1.7 0 0 0 2.4 2.4l1.2-1.2M7.8 6.4 9 5.2A1.7 1.7 0 0 0 6.6 2.8L5.4 4"/></svg><span data-i18n="link">Link</span></span></div>'); // static markup only
+      PN.applyI18n(tips);
+      w.append(tips);
       return grid.appendChild(w);
     }
     if (!list.length) {

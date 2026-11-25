@@ -59,9 +59,9 @@
       .fclear{height:36px;padding:0 12px;border:0;border-radius:var(--r);background:none;color:var(--ac);font-size:12.5px;font-weight:600;cursor:pointer}
       .fclear:hover{background:var(--ac-tint)}
       /* filter dropdown: status (radio) + tags (checkboxes) */
-      .flt{position:relative;display:inline-flex;align-items:center;min-width:0;max-width:min(360px,100%);height:30px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);box-shadow:var(--sh-1);transition:border-color .15s,background .15s}
-      .flt:hover{border-color:var(--line3)}
-      .flt.on{border-color:color-mix(in srgb,var(--ac) 40%,var(--line))}
+      .flt{position:relative;display:inline-flex;align-items:center;min-width:0;max-width:min(360px,100%);height:36px;border:1px solid var(--line3);border-radius:var(--r);background:var(--card);box-shadow:var(--sh-1);transition:border-color .15s,background .15s}
+      .flt:hover{border-color:var(--faint)}
+      .flt.on{border-color:color-mix(in srgb,var(--ac) 55%,var(--line3))}
       .fltbtn{display:inline-flex;align-items:center;gap:7px;min-width:0;height:100%;padding-inline:10px 9px;border:0;border-radius:inherit;background:none;color:var(--ink);font:600 12.5px/1 var(--sans);cursor:pointer}
       .flt.on .fltbtn{padding-inline-end:4px}
       .fltbtn svg,.fltx svg{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
@@ -100,8 +100,8 @@
       .ffoot .fok:hover{filter:brightness(1.08)}
       .dot.r{background:var(--red)}.dot.n{background:var(--faint)}
       .fcol{display:none!important} /* color filter kept for notes.js, hidden to keep the bar simple */
-      .selbtn{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);box-shadow:var(--sh-1);font-size:12.5px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-      .selbtn:hover{background:var(--panel);border-color:var(--line3)}
+      .selbtn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:1px solid var(--line3);border-radius:var(--r);background:var(--card);box-shadow:var(--sh-1);font-size:12.5px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+      .selbtn:hover{background:var(--panel);border-color:var(--faint)}
       .selbtn .bx{position:relative;width:14px;height:14px;border:1.5px solid #8a91a0;border-radius:4px;background:var(--card)}
       .selbtn[aria-pressed=true]{background:var(--ac-tint);border-color:color-mix(in srgb,var(--ac) 45%,transparent);color:var(--ac-ink)}
       .selbtn[aria-pressed=true] .bx{background:var(--ac);border-color:var(--ac)}
@@ -192,25 +192,57 @@
       .card.picked{border-color:var(--ac);background:#fbfcff;box-shadow:0 0 0 1px var(--ac),var(--sh-2)}
       .card.picked .pick{background:var(--ac);border-color:var(--ac)}
       /* empty states */
-      .hello{grid-column:1/-1;width:100%;max-width:520px;margin:28px auto;padding:36px 32px 28px;border:1px solid var(--line);border-radius:16px;background:radial-gradient(150px 80px at 50% 62px,#e3edff,transparent 75%),var(--card);box-shadow:var(--sh-2);text-align:center}
-      .hello .mark{font-size:54px}
-      .hello h2{margin:18px 0 6px;font:650 20px/1.25 var(--display);letter-spacing:-.015em}
-      .hello p{max-width:380px;margin:0 auto 20px;color:var(--muted);font-size:13px}
-      .hello ol{display:grid;gap:8px;margin:0;padding:0;list-style:none;text-align:start}
-      .hello li{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--panel);font-size:12.5px}
-      .hello kbd{flex:none;min-width:96px;padding:2px 8px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--card);font:600 11.5px/18px var(--sans);text-align:center}
-      .grid>.empty{padding:48px 16px;font-size:13px}
+      /* empty states: open, unboxed — the mascot floats on a soft glow, one line of help */
+      .hello{grid-column:1/-1;width:100%;max-width:460px;margin:56px auto 24px;text-align:center}
+      .hello .mark{font-size:76px;animation:helloFloat 4s ease-in-out infinite}
+      .hello::before{content:"";display:block;width:220px;height:120px;margin:-40px auto -100px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--orange) 22%,transparent),transparent);pointer-events:none}
+      @keyframes helloFloat{50%{transform:translateY(-6px) rotate(-3deg)}}
+      @media (prefers-reduced-motion:reduce){.hello .mark{animation:none}}
+      .hello h2{margin:22px 0 8px;font:700 24px/1.2 var(--display);letter-spacing:-.02em}
+      .hello p{max-width:360px;margin:0 auto;color:var(--muted);font-size:14px;line-height:1.5}
+      /* Tip panel (same as the popup's): tips, color legend, Watch tour */
+      .tips{max-width:420px;margin:28px auto 0;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--sh-1);text-align:start}
+      .tips .guide-h{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:inherit;cursor:pointer;list-style:none;user-select:none}
+      .tips .guide-h::-webkit-details-marker{display:none}
+      .tips .guide-h:hover{background:color-mix(in srgb,var(--panel) 60%,transparent)}
+      .tips .guide-h:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+      .tips[open] .guide-h{border-bottom:1px solid var(--line2);border-radius:12px 12px 0 0}
+      .tips .chev{width:14px;height:14px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+      .tips[open] .chev{transform:rotate(180deg)}
+      .tips .bulb{width:22px;height:22px;flex:none}
+      .tips .tt{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.3}
+      .tips .tt b{font-size:12.5px;font-weight:650}
+      .tips .tt small{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11.5px;color:var(--muted)}
+      .tips .guide-h a{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:12px;font-weight:600;color:var(--ac);text-decoration:none}
+      .tips .guide-h a:hover{color:var(--ac2)}
+      .tips .guide-h a svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5}
+      .tips .k-o{--k:var(--orange)}.tips .k-y{--k:var(--y)}.tips .k-b{--k:var(--b)}
+      .tips .tl{display:grid;gap:8px;margin:0;padding:12px 12px 8px;list-style:none;font-size:12px;line-height:1.45;color:var(--muted)}
+      .tips .tl li{display:flex;align-items:flex-start;gap:8px}
+      .tips .tl b{color:var(--ink);font-weight:600}
+      .tips .i{fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+      .tips .tl .i{flex:none;width:18px;height:18px;padding:2px;margin-top:-1px;border-radius:5px;background:var(--card);box-shadow:inset 0 0 0 1px var(--k);stroke:var(--k)}
+      .tips .legend{display:flex;flex-wrap:wrap;gap:5px;padding:4px 12px 12px}
+      .tips .legend .i{width:10px;height:10px;stroke:currentColor}
+      .tips .legend .chip.or .i circle{fill:currentColor;stroke:none}
+      /* empty states sit in the middle of the free space */
+      .grid:has(>.hello),.grid:has(>.empty){align-content:center;justify-content:center}
+      .grid:has(>.hello)::before,.grid:has(>.empty)::before{display:none}
+      .grid.vh:has(>.hello),.grid.vh:has(>.empty){padding-inline-start:0} /* no timeline rail gutter on empty states */
+      .grid>.hello{margin:0 auto}
+      .grid>.empty{padding:64px 16px;border:0;background:none;font-size:14px}
       .grid>.empty::before{content:"";display:block;width:44px;height:44px;margin:0 auto 12px;border-radius:50%;background:var(--ac-tint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%231b5ef7' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='9' cy='9' r='6'/%3E%3Cpath d='m13.5 13.5 4 4'/%3E%3C/svg%3E") no-repeat 50% 50%}
 
-      /* ---------- view switcher + the five card views (sticky · glass · preview · timeline · board) ---------- */
-      .vsw{display:inline-flex;align-items:center;gap:2px;height:36px;padding:3px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);box-shadow:var(--sh-1)}
+      /* ---------- view switcher + the card views (sticky · preview · timeline; board kept but hidden) ---------- */
+      .vsw{display:inline-flex;align-items:center;gap:2px;height:36px;padding:3px;border:1px solid var(--line3);border-radius:var(--r);background:var(--card);box-shadow:var(--sh-1)}
       .vsw button{display:grid;place-items:center;width:32px;height:28px;padding:0;border:0;border-radius:var(--r-sm);background:none;color:var(--muted);cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
       .vsw button:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 70%,transparent)}
-      .vsw button[aria-checked=true]{background:var(--card);color:var(--ac-ink);box-shadow:var(--sh-2),inset 0 0 0 1px var(--line2)}
+      .vsw button[aria-checked=true]{background:var(--ac-tint);color:var(--ac-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 35%,transparent)}
       .vsw button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
       .vsw svg{width:16px;height:16px}
+      .vsw button[hidden]{display:none}
       .selbtn[aria-disabled=true]{opacity:.45;cursor:not-allowed}
-      .selbtn[aria-disabled=true]:hover{background:var(--card);border-color:var(--line)}
+      .selbtn[aria-disabled=true]:hover{background:var(--card);border-color:var(--line3)}
       .grid.swap{animation:vwIn .24s ease-out}
       @keyframes vwIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
       @media (prefers-reduced-motion:reduce){.grid.swap{animation:none}}
@@ -250,13 +282,6 @@
       .vk .nc>.ntop,.vk .nc>.t,.vk .nc>.bot{position:relative}
       .vk .t{font-size:15px;font-weight:600;line-height:1.42}
       .vk .nc.picked{transform:none}
-      /* F  glass glow */
-      .grid.vf{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-      .vf .nc{display:flex;flex-direction:column;gap:10px;min-height:168px;padding:16px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,var(--card) 88%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--sh-1);overflow:hidden;transition:box-shadow .15s,border-color .15s}
-      .vf .nc:hover{border-color:var(--line3);box-shadow:var(--sh-2)}
-      .vf .nc::before{content:"";position:absolute;top:-60px;inset-inline-end:-50px;width:160px;height:160px;border-radius:50%;background:var(--c);opacity:.35;filter:blur(40px);pointer-events:none}
-      .vf .nc>.ntop,.vf .nc>.t,.vf .nc>.bot{position:relative}
-      .vf .t{font-size:15px;font-weight:600;line-height:1.42}
       /* G  page preview */
       .grid.vg{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
       .vg .nc{display:grid;grid-template-columns:96px minmax(0,1fr);min-height:150px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--sh-1);overflow:hidden;transition:box-shadow .15s,border-color .15s}
@@ -321,7 +346,6 @@
       [data-theme=dark] .vk .nc:hover,[data-theme=dark] .vk .nc:focus-within{box-shadow:inset 0 2px 0 var(--c),0 2px 4px rgba(5,7,12,.4),0 18px 34px -14px rgba(0,0,0,.7)}
       [data-theme=dark] .vk .nc::before{opacity:.3}
       [data-theme=dark] .vk .nc::after{background:rgba(255,255,255,.15);box-shadow:none}
-      [data-theme=dark] .vf .nc::before{opacity:.24}
       [data-theme=dark] .vg .sh i{background:var(--line3)}
       [data-theme=dark] .vg .sh b{box-shadow:0 4px 12px rgba(0,0,0,.45)}
       [data-theme=dark] .vb .col>header span{background:var(--raised)}
@@ -668,6 +692,15 @@
       .toast{position:fixed;left:50%;bottom:24px;z-index:40;padding:10px 16px;border-radius:var(--r);background:#1f232c;color:#fff;font-size:12.5px;font-weight:500;box-shadow:var(--sh-3);opacity:0;pointer-events:none;transform:translate(-50%,12px);transition:opacity .18s,transform .18s}
       .toast.on{opacity:1;transform:translate(-50%,0)}
 
+      /* ---------- All notes: header, toolbar and footer stay put; only the notes section scrolls ---------- */
+      @media (min-width:701px) and (min-height:520px){
+        body[data-view=notes] .frame{height:100vh;min-height:0;overflow:hidden}
+        body[data-view=notes] #vNotes{display:flex;flex-direction:column;min-height:0;padding-bottom:0}
+        #vNotes .toolbar{flex:none;margin-bottom:0;padding-bottom:14px;border-bottom:1px solid var(--line2)}
+        /* negative margin + padding: room for card hover lift / rotation without clipping */
+        .gridwrap{display:flex;flex-direction:column;flex:1;min-height:0;margin-inline:-10px;padding:16px 10px 28px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line3) transparent}
+        .gridwrap>.grid{flex:1 0 auto;width:100%}
+      }
       /* ---------- responsive ---------- */
       @media (max-width:900px){
         .top{grid-template-columns:auto 1fr auto;padding-inline:16px}
@@ -710,7 +743,6 @@
       [data-theme=dark] .ubadge{color:var(--r-ink)}
       [data-theme=dark] .card.picked{background:color-mix(in srgb,var(--ac) 7%,var(--card))}
       [data-theme=dark] .selbtn .bx,[data-theme=dark] .pick{border-color:#7a8191}
-      [data-theme=dark] .hello{background:radial-gradient(150px 80px at 50% 62px,rgba(110,152,255,.16),transparent 75%),var(--card)}
       [data-theme=dark] .step{background:var(--card);border-color:var(--line)}
       [data-theme=dark] .step .art{background:var(--panel);box-shadow:inset 0 0 0 1px var(--line2)}
       [data-theme=dark] .step .n{color:var(--bg)}
@@ -730,7 +762,7 @@
       [data-theme=dark] .v-lock .lk{color:var(--v)}
       [data-theme=dark] .v-save .file{color:var(--g)}
       [data-theme=dark] .v-save .file::before{background:linear-gradient(225deg,var(--bg) 50%,var(--line3) 50%)}
-      [data-theme=dark] .gkeys kbd,[data-theme=dark] .hello kbd,[data-theme=dark] .pv-keys kbd{background:var(--raised);border-color:var(--line3)}
+      [data-theme=dark] .gkeys kbd,[data-theme=dark] .tips,[data-theme=dark] .pv-keys kbd{background:var(--raised);border-color:var(--line3)}
       [data-theme=dark] .btn.danger{background:var(--raised)}
       [data-theme=dark] .btn.danger:hover{background:var(--r-tint)}
       [data-theme=dark] #vSettings h2 .warn .tip{background:var(--raised);border-color:var(--line3)}
@@ -775,11 +807,11 @@
             <label class="srch"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.8"/><path d="m10.6 10.6 3 3"/></svg><input id="q" type="search" placeholder="Search notes, pages or links" aria-label="Search notes" /><kbd>/</kbd></label>
             <label class="fsel"><span>Site</span><select id="site" aria-label="Filter by site"></select></label>
             <label class="fsel"><span>Sort</span><select id="sort" aria-label="Sort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="site">By site</option></select></label>
-            <div class="vsw" id="vsw" role="radiogroup" aria-label="View" data-i18n-aria="vwView"><button type="button" role="radio" data-v="sticky" aria-checked="true" title="Sticky" aria-label="Sticky" data-i18n-title="vwSticky" data-i18n-aria="vwSticky"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v6.5L9.5 13H3z"/><path d="M13 9.5H9.5V13"/></svg></button><button type="button" role="radio" data-v="glass" aria-checked="false" title="Glass" aria-label="Glass" data-i18n-title="vwGlass" data-i18n-aria="vwGlass"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7.5 2.5l1.4 3.4 3.4 1.4-3.4 1.4-1.4 3.4-1.4-3.4L2.7 7.3l3.4-1.4z"/><path d="M12.5 10.5v3M11 12h3"/></svg></button><button type="button" role="radio" data-v="preview" aria-checked="false" title="Preview" aria-label="Preview" data-i18n-title="vwPreview" data-i18n-aria="vwPreview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.1"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5L13 12"/></svg></button><button type="button" role="radio" data-v="timeline" aria-checked="false" title="Timeline" aria-label="Timeline" data-i18n-title="vwTimeline" data-i18n-aria="vwTimeline"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.1"/><circle cx="4" cy="8" r="1.1"/><circle cx="4" cy="12" r="1.1"/><path d="M7 4h6M7 8h6M7 12h6"/></svg></button><button type="button" role="radio" data-v="board" aria-checked="false" title="Board" aria-label="Board" data-i18n-title="vwBoard" data-i18n-aria="vwBoard"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M6.2 3v10M9.8 3v10"/></svg></button></div>
             <button type="button" class="fclear" id="clearF" hidden>Clear filters</button>
           </div>
           <div class="frow2">
             <div class="flt" id="flt"><button type="button" class="fltbtn" id="fltBtn" aria-haspopup="true" aria-expanded="false" aria-controls="fltMenu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z"/></svg><span class="fl-l" id="fltLbl">All notes</span><span class="fl-n" id="fltN" aria-hidden="true" hidden>0</span><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button><button type="button" class="fltx" id="fltX" aria-label="Clear filters" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 5 6 6M11 5l-6 6"/></svg></button><div class="fltmenu" id="fltMenu" role="menu" aria-labelledby="fltBtn" hidden></div></div>
+            <div class="vsw" id="vsw" role="radiogroup" aria-label="View" data-i18n-aria="vwView"><button type="button" role="radio" data-v="sticky" aria-checked="true" title="Sticky" aria-label="Sticky" data-i18n-title="vwSticky" data-i18n-aria="vwSticky"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v6.5L9.5 13H3z"/><path d="M13 9.5H9.5V13"/></svg></button><button type="button" role="radio" data-v="preview" aria-checked="false" title="Preview" aria-label="Preview" data-i18n-title="vwPreview" data-i18n-aria="vwPreview"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.1"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5L13 12"/></svg></button><button type="button" role="radio" data-v="timeline" aria-checked="false" title="Timeline" aria-label="Timeline" data-i18n-title="vwTimeline" data-i18n-aria="vwTimeline"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.1"/><circle cx="4" cy="8" r="1.1"/><circle cx="4" cy="12" r="1.1"/><path d="M7 4h6M7 8h6M7 12h6"/></svg></button><button type="button" role="radio" data-v="board" aria-checked="false" hidden title="Board" aria-label="Board" data-i18n-title="vwBoard" data-i18n-aria="vwBoard"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M6.2 3v10M9.8 3v10"/></svg></button></div>
             <div class="fcol"><span>Color</span><div class="colors" id="colors" role="group" aria-label="Filter by color"></div></div>
             <span class="sp"></span>
             <span class="cnt" id="shown"></span>

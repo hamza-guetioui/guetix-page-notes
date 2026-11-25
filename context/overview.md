@@ -18,7 +18,7 @@ Sticky notes for any website. Everything stays in the browser (`chrome.storage.l
 - Real shortcuts come from `chrome.commands.getAll` (no hard-coded keys).
 
 ## Dashboard (`notes.html/js`)
-- **All notes:** search, site, sort, **view switcher** (Sticky glass [default] · Glass glow · Page preview · Timeline · Board — saved in `settings.notesView`), **Filter dropdown** (status radio All/Open/Done + AND tags Urgent/Highlights/With links, counts per option, saved in `settings.notesFilter`), Select + bulk actions. Board: drag between Open/Urgent/Done.
+- **All notes:** search, site, sort, **view switcher** (Sticky glass [default] · Page preview · Timeline — Board code kept but its button is hidden; saved in `settings.notesView`), **Filter dropdown** (status radio All/Open/Done + AND tags Urgent/Highlights/With links, counts per option, saved in `settings.notesFilter`), Select + bulk actions. Board: drag between Open/Urgent/Done.
 - **Guides (#guides):** 3 illustrated steps, animated "Good to know" tiles, real shortcut keycaps + Change shortcuts link, FAQ.
 - **Settings (#settings):** sticky tab bar (wraps); sections: Notes on pages · **Customize** (1 Toolbar, 2 Personal: Appearance System/Light/Dark, Language, Snapshots) · Help & messages · Keyboard shortcuts · Your data (stats, orange Export backup, Import, clear snapshots, delete everything) · About · Dev (Inspect mode).
   Each option row has a hover **Preview** button that plays an animated demo of each choice (`previews.js`).

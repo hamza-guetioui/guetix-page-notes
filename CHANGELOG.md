@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.5.0
-- All notes: view switcher (Sticky glass, Glass glow, Page preview, Timeline, Board with drag between Open / Urgent / Done) and one Filter dropdown (status + tags, counts, remembered).
+- All notes: view switcher (Sticky glass, Page preview, Timeline; Board kept in code but hidden) and one Filter dropdown (status + tags, counts, remembered). Header, toolbar and footer stay fixed; only the notes section scrolls. Empty state: centred, unboxed, with a collapsible "How to add notes" panel (tips + Watch tour).
 - Settings: Toolbar and Personal merged into "Customize"; orange Export backup; Preview buttons show on hover.
 - Notes: drag only from the centre grip of the header; size limited to the window (max 460x480), long text scrolls.
 - Popup: "View all" opens All notes; the Tip card shows only for new users.
