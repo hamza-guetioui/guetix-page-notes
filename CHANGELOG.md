@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.0
+- Settings > Toolbar style: Bar (default line), Tile (compact multi-row card) or Orb (round button: hover it and 3 tools fan out - hide notes, + Note, options - no click needed; closes by itself when the pointer leaves; its options menu is a rounded panel of icon tiles). Each style has a Preview in Settings.
+
 ## 1.5.0
 - Popup empty states: shorter titles ("No notes yet", "Can’t add notes on this page" with a no-entry icon), outlined icon tiles.
 - Top-edge remove target: outline style; red bin with a lid that opens when armed, grey ✕ when cancelling a new note. "Note deleted · Undo" bar in an orange outline.

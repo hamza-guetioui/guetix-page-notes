@@ -19,7 +19,7 @@
   var TOGGLES = { visible: true, snapshots: true, tips: true, guide: true, undo: true, dev: false, sidePanel: false, autoMin: false };
   if (chrome.sidePanel) $("panelRow").style.display = ""; // browsers without side panels always use the dropdown
   // option cards: setting -> default
-  var CHOICES = { notesWhen: "auto", dock: "auto", guideMode: "full", theme: "system" };
+  var CHOICES = { notesWhen: "auto", dock: "auto", dockStyle: "bar", guideMode: "full", theme: "system" };
   var KEY_LABELS = { "place-note": "cPlace", "place-element": "cEl", "place-highlight": "cHl", "toggle-notes": "cToggle", _execute_action: "cPopup" };
 
   $("ver").textContent = manifest.version;
